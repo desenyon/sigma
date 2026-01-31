@@ -1,14 +1,67 @@
 """LLM client implementations for all providers."""
 
+import asyncio
 import json
+import re
+import time
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator, Callable, Optional
 
 from sigma.config import LLMProvider, get_settings
 
 
+# Rate limiting configuration
+class RateLimiter:
+    """Simple rate limiter to prevent API flooding."""
+    
+    def __init__(self, requests_per_minute: int = 10, min_interval: float = 1.0):
+        self.requests_per_minute = requests_per_minute
+        self.min_interval = min_interval
+        self.last_request_time = 0
+        self.request_count = 0
+        self.window_start = time.time()
+    
+    async def wait(self):
+        """Wait if necessary to respect rate limits."""
+        current_time = time.time()
+        
+        # Reset window if a minute has passed
+        if current_time - self.window_start >= 60:
+            self.window_start = current_time
+            self.request_count = 0
+        
+        # Check if we've hit the rate limit
+        if self.request_count >= self.requests_per_minute:
+            wait_time = 60 - (current_time - self.window_start)
+            if wait_time > 0:
+                await asyncio.sleep(wait_time)
+                self.window_start = time.time()
+                self.request_count = 0
+        
+        # Ensure minimum interval between requests
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < self.min_interval:
+            await asyncio.sleep(self.min_interval - time_since_last)
+        
+        self.last_request_time = time.time()
+        self.request_count += 1
+
+
+# Global rate limiters per provider
+_rate_limiters = {
+    "google": RateLimiter(requests_per_minute=15, min_interval=0.5),
+    "openai": RateLimiter(requests_per_minute=20, min_interval=0.3),
+    "anthropic": RateLimiter(requests_per_minute=15, min_interval=0.5),
+    "groq": RateLimiter(requests_per_minute=30, min_interval=0.2),
+    "xai": RateLimiter(requests_per_minute=10, min_interval=1.0),
+    "ollama": RateLimiter(requests_per_minute=60, min_interval=0.1),  # Local, can be faster
+}
+
+
 class BaseLLM(ABC):
     """Base class for LLM clients."""
+    
+    provider_name: str = "base"
     
     @abstractmethod
     async def generate(
@@ -19,10 +72,18 @@ class BaseLLM(ABC):
     ) -> str:
         """Generate a response."""
         pass
+    
+    async def _rate_limit(self):
+        """Apply rate limiting."""
+        limiter = _rate_limiters.get(self.provider_name)
+        if limiter:
+            await limiter.wait()
 
 
 class GoogleLLM(BaseLLM):
     """Google Gemini client."""
+    
+    provider_name = "google"
     
     def __init__(self, api_key: str, model: str):
         from google import genai
@@ -35,6 +96,7 @@ class GoogleLLM(BaseLLM):
         tools: Optional[list[dict]] = None,
         on_tool_call: Optional[Callable] = None,
     ) -> str:
+        await self._rate_limit()
         from google.genai import types
         
         # Extract system prompt and build contents
@@ -159,6 +221,8 @@ class GoogleLLM(BaseLLM):
 class OpenAILLM(BaseLLM):
     """OpenAI client."""
     
+    provider_name = "openai"
+    
     def __init__(self, api_key: str, model: str):
         from openai import AsyncOpenAI
         self.client = AsyncOpenAI(api_key=api_key)
@@ -170,6 +234,7 @@ class OpenAILLM(BaseLLM):
         tools: Optional[list[dict]] = None,
         on_tool_call: Optional[Callable] = None,
     ) -> str:
+        await self._rate_limit()
         kwargs = {
             "model": self.model,
             "messages": messages,
@@ -204,6 +269,8 @@ class OpenAILLM(BaseLLM):
 class AnthropicLLM(BaseLLM):
     """Anthropic Claude client."""
     
+    provider_name = "anthropic"
+    
     def __init__(self, api_key: str, model: str):
         from anthropic import AsyncAnthropic
         self.client = AsyncAnthropic(api_key=api_key)
@@ -215,6 +282,7 @@ class AnthropicLLM(BaseLLM):
         tools: Optional[list[dict]] = None,
         on_tool_call: Optional[Callable] = None,
     ) -> str:
+        await self._rate_limit()
         # Extract system message
         system = ""
         filtered_messages = []
@@ -277,6 +345,8 @@ class AnthropicLLM(BaseLLM):
 class GroqLLM(BaseLLM):
     """Groq client."""
     
+    provider_name = "groq"
+    
     def __init__(self, api_key: str, model: str):
         from groq import AsyncGroq
         self.client = AsyncGroq(api_key=api_key)
@@ -288,6 +358,7 @@ class GroqLLM(BaseLLM):
         tools: Optional[list[dict]] = None,
         on_tool_call: Optional[Callable] = None,
     ) -> str:
+        await self._rate_limit()
         kwargs = {
             "model": self.model,
             "messages": messages,
@@ -319,7 +390,9 @@ class GroqLLM(BaseLLM):
 
 
 class OllamaLLM(BaseLLM):
-    """Ollama local client."""
+    """Ollama local client with native tool call support."""
+    
+    provider_name = "ollama"
     
     def __init__(self, host: str, model: str):
         self.host = host.rstrip("/")
@@ -331,35 +404,200 @@ class OllamaLLM(BaseLLM):
         tools: Optional[list[dict]] = None,
         on_tool_call: Optional[Callable] = None,
     ) -> str:
+        await self._rate_limit()
         import aiohttp
         
-        # Ollama doesn't support tools natively, so we embed tool info in prompt
+        # Convert tools to Ollama format
+        ollama_tools = None
         if tools:
-            tool_desc = self._format_tools_for_prompt(tools)
-            # Prepend to system message
-            for i, msg in enumerate(messages):
-                if msg["role"] == "system":
-                    messages[i]["content"] = f"{msg['content']}\n\n{tool_desc}"
-                    break
-            else:
-                messages.insert(0, {"role": "system", "content": tool_desc})
+            ollama_tools = []
+            for tool in tools:
+                if tool.get("type") == "function":
+                    f = tool["function"]
+                    ollama_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": f["name"],
+                            "description": f.get("description", ""),
+                            "parameters": f.get("parameters", {})
+                        }
+                    })
+        
+        request_body = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False
+        }
+        
+        if ollama_tools:
+            request_body["tools"] = ollama_tools
         
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.host}/api/chat",
-                json={"model": self.model, "messages": messages, "stream": False}
-            ) as resp:
-                data = await resp.json()
-                return data.get("message", {}).get("content", "")
+            try:
+                async with session.post(
+                    f"{self.host}/api/chat",
+                    json=request_body,
+                    timeout=aiohttp.ClientTimeout(total=120)
+                ) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        return f"Ollama error: {error_text}"
+                    
+                    data = await resp.json()
+                    message = data.get("message", {})
+                    
+                    # Check for tool calls in response
+                    tool_calls = message.get("tool_calls", [])
+                    
+                    if tool_calls and on_tool_call:
+                        # Process tool calls
+                        updated_messages = messages.copy()
+                        updated_messages.append(message)
+                        
+                        for tc in tool_calls:
+                            func = tc.get("function", {})
+                            tool_name = func.get("name", "")
+                            tool_args = func.get("arguments", {})
+                            
+                            # If arguments is a string, parse it
+                            if isinstance(tool_args, str):
+                                try:
+                                    tool_args = json.loads(tool_args)
+                                except json.JSONDecodeError:
+                                    tool_args = {}
+                            
+                            # Execute the tool
+                            result = await on_tool_call(tool_name, tool_args)
+                            
+                            # Add tool result to messages
+                            updated_messages.append({
+                                "role": "tool",
+                                "content": json.dumps(result) if not isinstance(result, str) else result
+                            })
+                        
+                        # Get final response with tool results
+                        return await self._continue_with_tools(session, updated_messages, ollama_tools, on_tool_call)
+                    
+                    # Check for text-based tool calls (fallback for older models)
+                    content = message.get("content", "")
+                    if "TOOL_CALL:" in content and on_tool_call:
+                        result = await self._parse_text_tool_call(content, on_tool_call)
+                        if result:
+                            return result
+                    
+                    return content
+                    
+            except aiohttp.ClientError as e:
+                return f"Connection error: {e}. Is Ollama running?"
+            except asyncio.TimeoutError:
+                return "Request timed out. Try a simpler query or check Ollama status."
+    
+    async def _continue_with_tools(
+        self,
+        session,
+        messages: list[dict],
+        tools: Optional[list[dict]],
+        on_tool_call: Optional[Callable],
+        depth: int = 0
+    ) -> str:
+        """Continue conversation after tool calls."""
+        import aiohttp
+        
+        if depth > 5:  # Prevent infinite loops
+            return "Maximum tool call depth reached."
+        
+        request_body = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False
+        }
+        if tools:
+            request_body["tools"] = tools
+        
+        async with session.post(
+            f"{self.host}/api/chat",
+            json=request_body,
+            timeout=aiohttp.ClientTimeout(total=120)
+        ) as resp:
+            data = await resp.json()
+            message = data.get("message", {})
+            
+            # Check for more tool calls
+            tool_calls = message.get("tool_calls", [])
+            if tool_calls and on_tool_call:
+                updated_messages = messages.copy()
+                updated_messages.append(message)
+                
+                for tc in tool_calls:
+                    func = tc.get("function", {})
+                    tool_name = func.get("name", "")
+                    tool_args = func.get("arguments", {})
+                    
+                    if isinstance(tool_args, str):
+                        try:
+                            tool_args = json.loads(tool_args)
+                        except json.JSONDecodeError:
+                            tool_args = {}
+                    
+                    result = await on_tool_call(tool_name, tool_args)
+                    updated_messages.append({
+                        "role": "tool",
+                        "content": json.dumps(result) if not isinstance(result, str) else result
+                    })
+                
+                return await self._continue_with_tools(session, updated_messages, tools, on_tool_call, depth + 1)
+            
+            return message.get("content", "")
+    
+    async def _parse_text_tool_call(self, content: str, on_tool_call: Callable) -> Optional[str]:
+        """Parse text-based tool calls for older models."""
+        # Pattern: TOOL_CALL: tool_name({"arg": "value"}) or TOOL_CALL: tool_name(arg=value)
+        pattern = r'TOOL_CALL:\s*(\w+)\s*\(([^)]*)\)'
+        match = re.search(pattern, content)
+        
+        if not match:
+            return None
+        
+        tool_name = match.group(1)
+        args_str = match.group(2).strip()
+        
+        # Try to parse arguments
+        try:
+            if args_str.startswith("{"):
+                args = json.loads(args_str)
+            else:
+                # Parse key=value format
+                args = {}
+                for part in args_str.split(","):
+                    if "=" in part:
+                        k, v = part.split("=", 1)
+                        args[k.strip()] = v.strip().strip('"\'')
+        except:
+            args = {"symbol": args_str} if args_str else {}
+        
+        # Execute tool
+        result = await on_tool_call(tool_name, args)
+        
+        # Format result for response
+        if isinstance(result, dict):
+            result_str = json.dumps(result, indent=2)
+        else:
+            result_str = str(result)
+        
+        # Return combined response
+        return f"Tool result:\n```json\n{result_str}\n```"
     
     def _format_tools_for_prompt(self, tools: list[dict]) -> str:
-        """Format tools as text for prompt injection."""
+        """Format tools as text for prompt injection (legacy fallback)."""
         lines = ["You have access to these tools:"]
         for tool in tools:
             if tool.get("type") == "function":
                 f = tool["function"]
-                lines.append(f"- {f['name']}: {f.get('description', '')}")
+                params = f.get("parameters", {}).get("properties", {})
+                param_str = ", ".join(params.keys()) if params else ""
+                lines.append(f"- {f['name']}({param_str}): {f.get('description', '')}")
         lines.append("\nTo use a tool, respond with: TOOL_CALL: tool_name(args)")
+        lines.append("Example: TOOL_CALL: get_stock_quote(symbol=\"AAPL\")")
         return "\n".join(lines)
 
 
