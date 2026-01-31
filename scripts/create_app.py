@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 APP_NAME = "Sigma"
-VERSION = "3.0.0"
+VERSION = "3.2.0"
 BUNDLE_ID = "com.sigma.app"
 
 
@@ -215,7 +215,7 @@ def create_app_icon(icon_path: Path):
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
-  <text x="512" y="620" font-family="SF Pro Display, Helvetica, Arial" font-size="500" font-weight="bold" fill="url(#sigma)" text-anchor="middle">Σ</text>
+  <text x="512" y="650" font-family="SF Pro Display, Helvetica, Arial" font-size="580" font-weight="bold" fill="url(#sigma)" text-anchor="middle">σ</text>
 </svg>'''
     
     # Write SVG
@@ -287,7 +287,7 @@ def _create_simple_icon(path: Path, size: int):
             font = ImageFont.load_default()
         
         # Center the sigma
-        text = "Σ"
+        text = "σ"
         bbox = draw.textbbox((0, 0), text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
