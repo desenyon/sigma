@@ -1,61 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "sigma-terminal"
-version = "2.0.2"
-description = "Financial Research Agent"
+version = "3.2.0"
+description = "Sigma - Finance Research Agent"
 readme = "README.md"
-license = { text = "Proprietary" }
-requires-python = ">=3.10"
-authors = [
-    { name = "Desenyon" }
+license = {text = "Proprietary"}
+authors = [{ name = "Sigma Team" }]
+requires-python = ">=3.11"
+keywords = [
+    "finance", "ai", "trading", "research", "terminal", "stocks", "macos",
+    "portfolio", "analytics", "backtesting", "quantitative", "investment"
 ]
-keywords = ["finance", "research", "agent", "llm", "trading", "backtesting", "stocks"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Environment :: Console",
+    "Development Status :: 4 - Beta",
+    "Environment :: MacOS X",
     "Intended Audience :: Financial and Insurance Industry",
     "License :: Other/Proprietary License",
     "Operating System :: MacOS",
-    "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Topic :: Office/Business :: Financial :: Investment",
 ]
 
 dependencies = [
-    "httpx>=0.27.0",
-    "pydantic>=2.0",
-    "pydantic-settings>=2.0",
-    "rich>=13.0",
-    "yfinance>=0.2.40",
-    "pandas>=2.0",
-    "numpy>=1.24",
+    # UI and Console
+    "textual>=0.47.0",
+    "rich>=13.7.0",
+    
+    # AI Providers
+    "openai>=1.12.0",
+    "anthropic>=0.18.0",
+    "google-genai>=1.0.0",
+    "groq>=0.4.0",
+    
+    # Data and Finance
+    "yfinance>=0.2.36",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    
+    # Visualization
+    "plotly>=5.18.0",
+    "kaleido>=0.2.1",
+    
+    # HTTP and API
+    "httpx>=0.26.0",
+    "aiohttp>=3.9.0",
+    "requests>=2.31.0",
+    
+    # Configuration
     "python-dotenv>=1.0.0",
-    "plotext>=5.2.8",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.1.0",
+    
+    # macOS Native
+    "pyobjc-framework-Cocoa>=10.0;sys_platform=='darwin'",
+    "Pillow>=10.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "ruff>=0.4.0",
-    "mypy>=1.10",
-    "build",
-    "twine",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=24.0.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+    "py2app>=0.28.0",
+]
+lean = [
+    "lean>=1.0.0",  # LEAN CLI for QuantConnect backtesting
+]
+all = [
+    "sigma-terminal[dev,lean]",
 ]
 
 [project.scripts]
-sigma = "sigma.app:main"
+sigma = "sigma.cli:main"
+sigma-setup = "sigma.setup:run_setup"
+
+[project.gui-scripts]
+sigma-app = "sigma.app:launch"
 
 [project.urls]
 Homepage = "https://github.com/desenyon/sigma"
 Documentation = "https://github.com/desenyon/sigma/wiki"
-Changelog = "https://github.com/desenyon/sigma/blob/main/CHANGELOG.md"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+Repository = "https://github.com/desenyon/sigma"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sigma"]
@@ -66,14 +98,8 @@ target-version = ["py311", "py312"]
 
 [tool.ruff]
 line-length = 100
-select = ["E", "F", "I", "N", "W", "UP"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
