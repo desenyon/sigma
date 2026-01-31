@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 APP_NAME = "Sigma"
-VERSION = "3.3.1"
+VERSION = "3.3.2"
 BUNDLE_ID = "com.sigma.app"
 
 

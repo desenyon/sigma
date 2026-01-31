@@ -1,4 +1,4 @@
-"""Configuration management for Sigma v3.3.1."""
+"""Configuration management for Sigma v3.3.2."""
 
 import os
 import shutil
@@ -11,7 +11,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-__version__ = "3.3.1"
+__version__ = "3.3.2"
 
 
 class LLMProvider(str, Enum):
@@ -26,8 +26,8 @@ class LLMProvider(str, Enum):
 
 # Available models per provider
 AVAILABLE_MODELS = {
-    "google": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
-    "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview", "o1-mini"],
+    "google": ["gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash"],
+    "openai": ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini", "o3-mini"],
     "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"],
     "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
     "xai": ["grok-2", "grok-2-mini"],

@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.3.1-blue.svg" alt="Version 3.3.1"/>
+  <img src="https://img.shields.io/badge/version-3.3.2-blue.svg" alt="Version 3.3.2"/>
   <img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python 3.11+"/>
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg" alt="macOS"/>
   <img src="https://img.shields.io/badge/AI-Multi--Provider-purple.svg" alt="Multi-Provider AI"/>
@@ -61,8 +61,8 @@ Switch between providers on the fly. Use free tiers or bring your own keys.
 
 | Provider                | Models                    | Speed     | Cost                | Tool Calls |
 | ----------------------- | ------------------------- | --------- | ------------------- | ---------- |
-| **Google Gemini** | gemini-2.0-flash, 1.5-pro | Fast      | Free tier           | Native     |
-| **OpenAI**        | gpt-4o, o1-preview        | Fast      | Paid                | Native     |
+| **Google Gemini** | gemini-3-flash-preview, 2.5-pro | Fast      | Free tier           | Native     |
+| **OpenAI**        | gpt-4o, o1, o3-mini       | Fast      | Paid                | Native     |
 | **Anthropic**     | claude-sonnet-4, opus     | Fast      | Paid                | Native     |
 | **Groq**          | llama-3.3-70b             | Very Fast | Free tier           | Native     |
 | **xAI**           | grok-2                    | Fast      | Paid                | Native     |
@@ -293,7 +293,7 @@ XAI_API_KEY=xai-...
 
 # Defaults
 DEFAULT_PROVIDER=google
-DEFAULT_MODEL=gemini-2.0-flash
+DEFAULT_MODEL=gemini-3-flash-preview
 
 # Integrations
 OLLAMA_HOST=http://localhost:11434

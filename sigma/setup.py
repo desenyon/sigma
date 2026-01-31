@@ -403,7 +403,7 @@ def quick_setup():
     choice = Prompt.ask("Provider", choices=["1", "2", "3"], default="1")
     
     providers = {
-        "1": ("google", "gemini-2.0-flash"),
+        "1": ("google", "gemini-3-flash-preview"),
         "2": ("groq", "llama-3.3-70b-versatile"),
         "3": ("ollama", "llama3.2"),
     }
