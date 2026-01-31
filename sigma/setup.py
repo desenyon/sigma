@@ -1,455 +1,358 @@
-"""Sigma Setup Wizard - Beautiful first-run configuration experience."""
+"""Sigma v3.2.0 - Setup Wizard."""
 
 import os
 import sys
-import time
+import subprocess
 from pathlib import Path
 from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
-from rich import box
 
+from .config import (
+    get_settings,
+    save_api_key,
+    save_setting,
+    LLMProvider,
+    AVAILABLE_MODELS,
+    CONFIG_DIR,
+)
+
+
+__version__ = "3.2.0"
+SIGMA = "σ"
 console = Console()
 
-# Config directory
-CONFIG_DIR = Path.home() / ".sigma"
-CONFIG_FILE = CONFIG_DIR / "config.env"
-SETUP_COMPLETE_FILE = CONFIG_DIR / ".setup_complete"
+# Clean banner - just SIGMA, no SETU
+BANNER = """
+[bold blue]███████╗██╗ ██████╗ ███╗   ███╗ █████╗ [/bold blue]
+[bold blue]██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗[/bold blue]
+[bold blue]███████╗██║██║  ███╗██╔████╔██║███████║[/bold blue]
+[bold blue]╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║[/bold blue]
+[bold blue]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold blue]
+[bold blue]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
 
-
-def is_setup_complete() -> bool:
-    """Check if setup has been completed."""
-    return SETUP_COMPLETE_FILE.exists()
-
-
-def clear_screen():
-    """Clear the terminal screen."""
-    os.system('cls' if os.name == 'nt' else 'clear')
-
-
-def print_logo():
-    """Print the Sigma logo."""
-    logo = """
-[bold bright_cyan]
- ███████╗██╗ ██████╗ ███╗   ███╗ █████╗ 
- ██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗
- ███████╗██║██║  ███╗██╔████╔██║███████║
- ╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║
- ███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║
- ╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝
-[/bold bright_cyan]
+[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.2.0[/dim]
 """
-    console.print(logo)
 
 
-def animate_text(text: str, delay: float = 0.02):
-    """Animate text character by character."""
-    for char in text:
-        console.print(char, end="", highlight=False)
-        time.sleep(delay)
-    console.print()
-
-
-def show_welcome():
-    """Show the welcome screen."""
-    clear_screen()
-    print_logo()
+class SetupWizard:
+    """Interactive setup wizard."""
     
-    console.print()
-    console.print(Panel(
-        "[bold]Welcome to Sigma[/bold]\n\n"
-        "[dim]The Institutional-Grade Financial Research Agent[/dim]\n\n"
-        "This setup wizard will help you configure Sigma for\n"
-        "optimal performance. It only takes about 2 minutes.",
-        title="[bold bright_green]Setup Wizard[/bold bright_green]",
-        border_style="bright_green",
-        padding=(1, 2)
-    ))
-    console.print()
+    def __init__(self):
+        self.settings = get_settings()
+        self.providers = {
+            LLMProvider.GOOGLE: {
+                "name": "Google Gemini",
+                "models": AVAILABLE_MODELS.get("google", []),
+                "url": "https://aistudio.google.com/apikey",
+                "free": True,
+                "desc": "Fast, capable, free tier",
+                "recommended": True,
+            },
+            LLMProvider.OPENAI: {
+                "name": "OpenAI GPT",
+                "models": AVAILABLE_MODELS.get("openai", []),
+                "url": "https://platform.openai.com/api-keys",
+                "free": False,
+                "desc": "Industry standard",
+            },
+            LLMProvider.ANTHROPIC: {
+                "name": "Anthropic Claude",
+                "models": AVAILABLE_MODELS.get("anthropic", []),
+                "url": "https://console.anthropic.com/",
+                "free": False,
+                "desc": "Advanced reasoning",
+            },
+            LLMProvider.GROQ: {
+                "name": "Groq (Llama)",
+                "models": AVAILABLE_MODELS.get("groq", []),
+                "url": "https://console.groq.com/keys",
+                "free": True,
+                "desc": "Ultra-fast, free tier",
+                "recommended": True,
+            },
+            LLMProvider.XAI: {
+                "name": "xAI Grok",
+                "models": AVAILABLE_MODELS.get("xai", []),
+                "url": "https://console.x.ai/",
+                "free": False,
+                "desc": "X.com AI",
+            },
+            LLMProvider.OLLAMA: {
+                "name": "Ollama (Local)",
+                "models": AVAILABLE_MODELS.get("ollama", []),
+                "url": "https://ollama.ai/download",
+                "free": True,
+                "desc": "Run locally, no API key",
+            },
+        }
     
-    Prompt.ask("[dim]Press Enter to begin[/dim]", default="")
-
-
-def show_progress_step(step: int, total: int, title: str):
-    """Show progress header."""
-    console.print()
-    console.print(f"[bold bright_cyan]Step {step}/{total}:[/bold bright_cyan] {title}")
-    console.print("[dim]" + "─" * 50 + "[/dim]")
-    console.print()
-
-
-def setup_llm_provider() -> dict:
-    """Configure LLM provider."""
-    clear_screen()
-    print_logo()
-    show_progress_step(1, 4, "Choose Your AI Model")
-    
-    providers = [
-        ("google", "Google Gemini", "Free tier available, fast responses", "GOOGLE_API_KEY"),
-        ("openai", "OpenAI GPT-4", "Most capable, best for complex analysis", "OPENAI_API_KEY"),
-        ("anthropic", "Anthropic Claude", "Excellent reasoning, very safe", "ANTHROPIC_API_KEY"),
-        ("groq", "Groq (Llama)", "Extremely fast, free tier available", "GROQ_API_KEY"),
-        ("xai", "xAI Grok", "Real-time knowledge, unique insights", "XAI_API_KEY"),
-        ("ollama", "Ollama (Local)", "Free, private, runs on your machine", None),
-    ]
-    
-    table = Table(box=box.ROUNDED, border_style="bright_blue")
-    table.add_column("#", style="bold cyan", justify="center", width=3)
-    table.add_column("Provider", style="bold")
-    table.add_column("Description", style="dim")
-    
-    for i, (key, name, desc, _) in enumerate(providers, 1):
-        table.add_row(str(i), name, desc)
-    
-    console.print(table)
-    console.print()
-    
-    choice = Prompt.ask(
-        "[bold]Select your preferred AI provider[/bold]",
-        choices=[str(i) for i in range(1, len(providers) + 1)],
-        default="1"
-    )
-    
-    selected = providers[int(choice) - 1]
-    provider_key, provider_name, _, env_key = selected
-    
-    config = {"DEFAULT_PROVIDER": provider_key}
-    
-    console.print()
-    console.print(f"[green]Selected:[/green] {provider_name}")
-    
-    if env_key:
+    def run(self) -> bool:
+        """Run setup wizard."""
+        console.clear()
+        console.print(BANNER)
         console.print()
+        
         console.print(Panel(
-            f"[bold]Get your API key:[/bold]\n\n"
-            f"{'https://aistudio.google.com/apikey' if provider_key == 'google' else ''}"
-            f"{'https://platform.openai.com/api-keys' if provider_key == 'openai' else ''}"
-            f"{'https://console.anthropic.com/settings/keys' if provider_key == 'anthropic' else ''}"
-            f"{'https://console.groq.com/keys' if provider_key == 'groq' else ''}"
-            f"{'https://console.x.ai/' if provider_key == 'xai' else ''}",
-            title=f"[bold yellow]{provider_name} API Key[/bold yellow]",
-            border_style="yellow"
+            "[bold]Welcome to Sigma Setup[/bold]\n\n"
+            "This wizard will configure Sigma for first use.\n"
+            f"Configuration stored in [cyan]~/.sigma/[/cyan]\n\n"
+            "[bold]Steps:[/bold]\n"
+            "  1. Choose AI provider\n"
+            "  2. Configure API key\n"
+            "  3. Select model\n"
+            "  4. Data settings\n"
+            "  5. Optional: Ollama, LEAN",
+            title=f"[cyan]{SIGMA} Setup[/cyan]",
+            border_style="blue",
         ))
         console.print()
         
-        api_key = Prompt.ask(
-            f"[bold]Enter your {provider_name} API key[/bold]",
-            password=True
+        if not Confirm.ask("Ready to begin?", default=True):
+            console.print("[dim]Cancelled.[/dim]")
+            return False
+        
+        console.print()
+        
+        # Steps
+        self._setup_provider()
+        console.print()
+        self._setup_api_key()
+        console.print()
+        self._setup_model()
+        console.print()
+        self._setup_data()
+        console.print()
+        self._setup_integrations()
+        console.print()
+        self._show_summary()
+        
+        return True
+    
+    def _setup_provider(self):
+        """Choose AI provider."""
+        console.print(Panel("[bold]Step 1: AI Provider[/bold]", border_style="blue"))
+        console.print()
+        
+        providers = list(self.providers.keys())
+        
+        for i, p in enumerate(providers, 1):
+            info = self.providers[p]
+            name = info["name"]
+            desc = info["desc"]
+            free = "[green]free[/green]" if info.get("free") else "[yellow]paid[/yellow]"
+            rec = " [cyan](recommended)[/cyan]" if info.get("recommended") else ""
+            console.print(f"  {i}. [bold]{name}[/bold] - {desc} {free}{rec}")
+        
+        console.print()
+        choice = Prompt.ask(
+            "Choose provider",
+            choices=[str(i) for i in range(1, len(providers) + 1)],
+            default="1"
         )
-        if api_key:
-            config[env_key] = api_key
-    else:
-        # Ollama
+        
+        provider = providers[int(choice) - 1]
+        save_setting("default_provider", provider.value)
+        self.settings.default_provider = provider
+        
+        console.print(f"[cyan]{SIGMA}[/cyan] Provider: [bold]{self.providers[provider]['name']}[/bold]")
+    
+    def _setup_api_key(self):
+        """Configure API key."""
+        console.print(Panel("[bold]Step 2: API Key[/bold]", border_style="blue"))
         console.print()
+        
+        provider = self.settings.default_provider
+        info = self.providers[provider]
+        
+        if provider == LLMProvider.OLLAMA:
+            console.print("[dim]Ollama runs locally - no API key needed.[/dim]")
+            if Confirm.ask("Is Ollama installed?", default=True):
+                console.print(f"[cyan]{SIGMA}[/cyan] Ollama configured")
+            else:
+                console.print(f"Install from: [bold]{info['url']}[/bold]")
+            return
+        
+        # Check existing
+        key_attr = f"{provider.value}_api_key"
+        existing = getattr(self.settings, key_attr, None)
+        
+        if existing:
+            masked = f"{existing[:8]}...{existing[-4:]}"
+            console.print(f"[dim]Existing key: {masked}[/dim]")
+            if not Confirm.ask("Replace?", default=False):
+                console.print(f"[cyan]{SIGMA}[/cyan] Keeping existing key")
+                return
+        
+        console.print(f"Get key from: [bold]{info['url']}[/bold]")
+        console.print()
+        
+        api_key = Prompt.ask("API key", password=True)
+        
+        if api_key:
+            save_api_key(provider, api_key)
+            setattr(self.settings, key_attr, api_key)
+            console.print(f"[cyan]{SIGMA}[/cyan] Key saved for {info['name']}")
+        else:
+            console.print("[yellow]Skipped[/yellow]")
+    
+    def _setup_model(self):
+        """Select model."""
+        console.print(Panel("[bold]Step 3: Model[/bold]", border_style="blue"))
+        console.print()
+        
+        provider = self.settings.default_provider
+        models = self.providers[provider]["models"]
+        
+        if not models:
+            console.print("[yellow]No models for this provider[/yellow]")
+            return
+        
+        console.print("Available models:")
+        for i, m in enumerate(models, 1):
+            current = " [cyan](current)[/cyan]" if m == self.settings.default_model else ""
+            console.print(f"  {i}. {m}{current}")
+        
+        console.print()
+        choice = Prompt.ask(
+            "Choose model",
+            choices=[str(i) for i in range(1, len(models) + 1)],
+            default="1"
+        )
+        
+        model = models[int(choice) - 1]
+        save_setting("default_model", model)
+        self.settings.default_model = model
+        
+        console.print(f"[cyan]{SIGMA}[/cyan] Model: [bold]{model}[/bold]")
+    
+    def _setup_data(self):
+        """Data settings."""
+        console.print(Panel("[bold]Step 4: Data Settings[/bold]", border_style="blue"))
+        console.print()
+        
+        console.print(f"Data stored in: [bold]~/.sigma[/bold]")
+        console.print()
+        
+        # Output directory
+        default_out = os.path.expanduser("~/Documents/Sigma")
+        out_dir = Prompt.ask("Output directory", default=default_out)
+        
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        save_setting("output_dir", out_dir)
+        console.print(f"[cyan]{SIGMA}[/cyan] Output: {out_dir}")
+        
+        # Cache
+        if Confirm.ask("Enable caching?", default=True):
+            save_setting("cache_enabled", True)
+            console.print(f"[cyan]{SIGMA}[/cyan] Caching enabled")
+        else:
+            save_setting("cache_enabled", False)
+    
+    def _setup_integrations(self):
+        """Optional integrations."""
+        console.print(Panel("[bold]Step 5: Integrations[/bold]", border_style="blue"))
+        console.print()
+        
+        # Ollama (if not primary)
+        if self.settings.default_provider != LLMProvider.OLLAMA:
+            if Confirm.ask("Setup Ollama for local fallback?", default=False):
+                console.print("[dim]Install: https://ollama.ai/download[/dim]")
+                console.print("[dim]Run: ollama pull llama3.2[/dim]")
+        
+        # LEAN
+        if Confirm.ask("Setup LEAN/QuantConnect?", default=False):
+            console.print("[dim]LEAN provides advanced backtesting.[/dim]")
+            console.print("[dim]Install: pip install lean[/dim]")
+            console.print()
+            
+            lean_path = Prompt.ask("LEAN CLI path (or Enter to skip)", default="")
+            if lean_path:
+                save_setting("lean_cli_path", lean_path)
+                console.print(f"[cyan]{SIGMA}[/cyan] LEAN configured")
+    
+    def _show_summary(self):
+        """Show summary."""
         console.print(Panel(
-            "[bold]Ollama Setup:[/bold]\n\n"
-            "1. Install Ollama: https://ollama.ai\n"
-            "2. Run: ollama pull llama3.2\n"
-            "3. Ollama runs automatically in the background",
-            title="[bold yellow]Local AI Setup[/bold yellow]",
-            border_style="yellow"
+            "[bold green]Setup Complete![/bold green]",
+            border_style="green",
         ))
         console.print()
-        Prompt.ask("[dim]Press Enter to continue[/dim]", default="")
-    
-    return config
-
-
-def setup_additional_providers(config: dict) -> dict:
-    """Configure additional LLM providers."""
-    clear_screen()
-    print_logo()
-    show_progress_step(2, 4, "Additional AI Providers (Optional)")
-    
-    console.print(Panel(
-        "You can add more AI providers to switch between them.\n"
-        "This is [bold]optional[/bold] - skip if you only need one provider.",
-        border_style="blue"
-    ))
-    console.print()
-    
-    if not Confirm.ask("[bold]Add additional AI providers?[/bold]", default=False):
-        return config
-    
-    providers = [
-        ("GOOGLE_API_KEY", "Google Gemini", "https://aistudio.google.com/apikey"),
-        ("OPENAI_API_KEY", "OpenAI GPT-4", "https://platform.openai.com/api-keys"),
-        ("ANTHROPIC_API_KEY", "Anthropic Claude", "https://console.anthropic.com/settings/keys"),
-        ("GROQ_API_KEY", "Groq (Llama)", "https://console.groq.com/keys"),
-        ("XAI_API_KEY", "xAI Grok", "https://console.x.ai/"),
-    ]
-    
-    for env_key, name, url in providers:
-        if env_key in config:
-            continue
         
-        console.print()
-        if Confirm.ask(f"[bold]Add {name}?[/bold]", default=False):
-            console.print(f"  [dim]Get key: {url}[/dim]")
-            api_key = Prompt.ask(f"  [bold]API key[/bold]", password=True)
-            if api_key:
-                config[env_key] = api_key
-                console.print(f"  [green]Added![/green]")
-    
-    return config
-
-
-def setup_data_providers(config: dict) -> dict:
-    """Configure financial data providers."""
-    clear_screen()
-    print_logo()
-    show_progress_step(3, 4, "Financial Data Providers (Optional)")
-    
-    console.print(Panel(
-        "[bold]Sigma works great with free data from Yahoo Finance.[/bold]\n\n"
-        "For premium features, you can add professional data sources.\n"
-        "All of these are [bold]optional[/bold].",
-        border_style="blue"
-    ))
-    console.print()
-    
-    # Table of data providers
-    table = Table(box=box.ROUNDED, border_style="dim")
-    table.add_column("Provider", style="bold")
-    table.add_column("Features", style="dim")
-    table.add_column("Free Tier")
-    
-    table.add_row("Financial Modeling Prep", "Fundamentals, SEC filings", "[green]Yes[/green]")
-    table.add_row("Polygon.io", "Real-time data, options", "[green]Yes[/green]")
-    table.add_row("Alpha Vantage", "Technical indicators", "[green]Yes[/green]")
-    table.add_row("Exa Search", "AI-powered news search", "[yellow]Limited[/yellow]")
-    
-    console.print(table)
-    console.print()
-    
-    if not Confirm.ask("[bold]Configure data providers?[/bold]", default=False):
-        return config
-    
-    providers = [
-        ("FMP_API_KEY", "Financial Modeling Prep", "https://financialmodelingprep.com/developer/docs/"),
-        ("POLYGON_API_KEY", "Polygon.io", "https://polygon.io/dashboard/api-keys"),
-        ("ALPHA_VANTAGE_API_KEY", "Alpha Vantage", "https://www.alphavantage.co/support/#api-key"),
-        ("EXASEARCH_API_KEY", "Exa Search", "https://exa.ai/"),
-    ]
-    
-    for env_key, name, url in providers:
-        console.print()
-        if Confirm.ask(f"[bold]Add {name}?[/bold]", default=False):
-            console.print(f"  [dim]Get key: {url}[/dim]")
-            api_key = Prompt.ask(f"  [bold]API key[/bold]", password=True)
-            if api_key:
-                config[env_key] = api_key
-                console.print(f"  [green]Added![/green]")
-    
-    return config
-
-
-def setup_preferences(config: dict) -> dict:
-    """Configure user preferences."""
-    clear_screen()
-    print_logo()
-    show_progress_step(4, 4, "Preferences")
-    
-    # Default model selection
-    provider = config.get("DEFAULT_PROVIDER", "google")
-    
-    console.print(Panel(
-        "Configure your default settings.\n"
-        "You can change these anytime with /model and /mode commands.",
-        border_style="blue"
-    ))
-    console.print()
-    
-    # Analysis mode
-    modes = [
-        ("default", "Comprehensive - Uses all available tools"),
-        ("technical", "Technical - Charts, indicators, price action"),
-        ("fundamental", "Fundamental - Financials, ratios, valuations"),
-        ("quant", "Quantitative - Predictions, backtesting"),
-    ]
-    
-    console.print("[bold]Default analysis mode:[/bold]")
-    for i, (key, desc) in enumerate(modes, 1):
-        console.print(f"  {i}. {desc}")
-    console.print()
-    
-    mode_choice = Prompt.ask(
-        "[bold]Select mode[/bold]",
-        choices=["1", "2", "3", "4"],
-        default="1"
-    )
-    config["DEFAULT_MODE"] = modes[int(mode_choice) - 1][0]
-    
-    return config
-
-
-def save_config(config: dict):
-    """Save configuration to file."""
-    # Ensure config directory exists
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Write config file
-    with open(CONFIG_FILE, 'w') as f:
-        f.write("# Sigma Configuration\n")
-        f.write("# Generated by setup wizard\n")
-        f.write("# You can edit this file or run 'sigma --setup' again\n\n")
+        table = Table(show_header=False, box=None)
+        table.add_column("", style="bold")
+        table.add_column("")
         
-        for key, value in config.items():
-            f.write(f"{key}={value}\n")
-    
-    # Mark setup as complete
-    SETUP_COMPLETE_FILE.touch()
-    
-    # Also create/update .env in current directory if it exists
-    cwd_env = Path.cwd() / ".env"
-    if cwd_env.exists() or Path.cwd().name == "sigma":
-        with open(cwd_env, 'a') as f:
-            f.write("\n# Added by Sigma setup\n")
-            for key, value in config.items():
-                if "API_KEY" in key:
-                    f.write(f"{key}={value}\n")
+        provider = getattr(self.settings.default_provider, 'value', str(self.settings.default_provider))
+        table.add_row("Provider", provider)
+        table.add_row("Model", self.settings.default_model)
+        
+        console.print(table)
+        console.print()
+        console.print(f"Run [bold]sigma[/bold] to start!")
+        console.print()
 
 
-def show_completion(config: dict):
-    """Show completion screen."""
-    clear_screen()
-    print_logo()
-    
-    console.print()
-    console.print(Panel(
-        "[bold bright_green]Setup Complete![/bold bright_green]\n\n"
-        "Sigma is ready to use. Here's what's configured:",
-        border_style="bright_green",
-        padding=(1, 2)
-    ))
+def run_setup() -> bool:
+    """Run the setup wizard."""
+    wizard = SetupWizard()
+    return wizard.run()
+
+
+def quick_setup():
+    """Quick setup for first-time users."""
+    console.print(BANNER)
     console.print()
     
-    # Summary table
-    table = Table(box=box.ROUNDED, border_style="green")
-    table.add_column("Setting", style="bold")
-    table.add_column("Value", style="cyan")
+    console.print("[bold]Quick Setup[/bold]")
+    console.print()
     
-    provider_names = {
-        "google": "Google Gemini",
-        "openai": "OpenAI GPT-4",
-        "anthropic": "Anthropic Claude",
-        "groq": "Groq (Llama)",
-        "xai": "xAI Grok",
-        "ollama": "Ollama (Local)"
+    # Pick provider
+    console.print("Choose provider:")
+    console.print("  1. [bold]Google Gemini[/bold] [green](free, recommended)[/green]")
+    console.print("  2. [bold]Groq[/bold] [green](free, fast)[/green]")
+    console.print("  3. [bold]Ollama[/bold] [green](local, no key)[/green]")
+    console.print()
+    
+    choice = Prompt.ask("Provider", choices=["1", "2", "3"], default="1")
+    
+    providers = {
+        "1": ("google", "gemini-2.0-flash"),
+        "2": ("groq", "llama-3.3-70b-versatile"),
+        "3": ("ollama", "llama3.2"),
     }
     
-    table.add_row("AI Provider", provider_names.get(config.get("DEFAULT_PROVIDER", "google"), "Google Gemini"))
-    table.add_row("Config Location", str(CONFIG_FILE))
+    provider_key, model = providers[choice]
+    provider_name = {"google": "Google Gemini", "groq": "Groq", "ollama": "Ollama"}[provider_key]
     
-    # Count configured APIs
-    api_count = sum(1 for k in config if "API_KEY" in k)
-    table.add_row("API Keys Configured", str(api_count))
+    if provider_key != "ollama":
+        urls = {
+            "google": "https://aistudio.google.com/apikey",
+            "groq": "https://console.groq.com/keys",
+        }
+        console.print(f"\nGet key from: [bold]{urls[provider_key]}[/bold]")
+        api_key = Prompt.ask("API key", password=True)
+        
+        if api_key:
+            save_api_key(LLMProvider(provider_key), api_key)
     
-    console.print(table)
+    save_setting("default_provider", provider_key)
+    save_setting("default_model", model)
     
     console.print()
-    console.print(Panel(
-        "[bold]Quick Start:[/bold]\n\n"
-        "  [cyan]sigma[/cyan]                    Start Sigma\n"
-        "  [cyan]sigma --help[/cyan]             Show help\n"
-        "  [cyan]sigma --setup[/cyan]            Run setup again\n\n"
-        "[bold]Inside Sigma:[/bold]\n\n"
-        "  [dim]Analyze NVDA stock[/dim]\n"
-        "  [dim]Compare AAPL, MSFT, GOOGL[/dim]\n"
-        "  [dim]/lean run TSLA macd_momentum[/dim]\n\n"
-        "[dim]Type /help for all commands[/dim]",
-        title="[bold bright_cyan]Getting Started[/bold bright_cyan]",
-        border_style="cyan",
-        padding=(1, 2)
-    ))
+    console.print(f"[bold green]{SIGMA} Setup complete![/bold green]")
+    console.print(f"Provider: {provider_name}")
+    console.print(f"Model: {model}")
     console.print()
-
-
-def run_setup(force: bool = False) -> dict:
-    """Run the setup wizard.
-    
-    Args:
-        force: Force setup even if already complete
-        
-    Returns:
-        Configuration dictionary
-    """
-    if is_setup_complete() and not force:
-        return load_config()
-    
-    try:
-        show_welcome()
-        
-        config = {}
-        config = setup_llm_provider()
-        config = setup_additional_providers(config)
-        config = setup_data_providers(config)
-        config = setup_preferences(config)
-        
-        # Save with progress
-        console.print()
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold]Saving configuration...[/bold]"),
-            console=console
-        ) as progress:
-            task = progress.add_task("save", total=None)
-            save_config(config)
-            time.sleep(0.5)
-        
-        show_completion(config)
-        
-        Prompt.ask("\n[dim]Press Enter to start Sigma[/dim]", default="")
-        
-        return config
-        
-    except KeyboardInterrupt:
-        console.print("\n\n[yellow]Setup cancelled. Run 'sigma --setup' to try again.[/yellow]")
-        sys.exit(0)
-
-
-def load_config() -> dict:
-    """Load existing configuration."""
-    config = {}
-    
-    if CONFIG_FILE.exists():
-        with open(CONFIG_FILE) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    config[key.strip()] = value.strip()
-    
-    return config
-
-
-def apply_config_to_env(config: dict):
-    """Apply loaded config to environment variables."""
-    for key, value in config.items():
-        if key not in os.environ:
-            os.environ[key] = value
-
-
-def ensure_setup() -> dict:
-    """Ensure setup is complete, running wizard if needed.
-    
-    Returns:
-        Configuration dictionary
-    """
-    if is_setup_complete():
-        config = load_config()
-        apply_config_to_env(config)
-        return config
-    else:
-        config = run_setup()
-        apply_config_to_env(config)
-        return config
+    console.print("Run [bold]sigma[/bold] to start!")
 
 
 if __name__ == "__main__":
-    run_setup(force=True)
+    if "--quick" in sys.argv:
+        quick_setup()
+    else:
+        run_setup()
