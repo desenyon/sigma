@@ -3,12 +3,12 @@
 <div align="center">
 
 ```
-   _____ _                       
+   _____ _                     
   / ___/(_)___ _____ ___  ____ _ 
   \__ \/ / __ `/ __ `__ \/ __ `/ 
  ___/ / / /_/ / / / / / / /_/ /  
 /____/_/\__, /_/ /_/ /_/\__,_/   
-       /____/                    
+       /____/                  
 ```
 
 **Finance Research Agent**
@@ -17,9 +17,8 @@ Native macOS | Multi-Provider AI | Real-Time Data
 
 ---
 
-[Installation](#installation) | [Usage](#usage) | [Commands](#commands) | [Configuration](#configuration)
-
-</div>
+[Installation](#installation) | [Usage](#usage) | [Commands](#commands) | [Configuration
+](#configuration)
 
 ---
 
@@ -31,6 +30,15 @@ Sigma is an AI-powered Finance Research Agent that runs natively on macOS. Ask q
 
 ## Installation
 
+## Via Brew
+
+```bash
+brew tap desenyon/sigma
+brew install sigma
+# or if you want app (experimental)
+brew install --cask sigma
+```
+
 ### Via pip
 
 ```bash
@@ -41,7 +49,7 @@ sigma --setup
 ### From source
 
 ```bash
-git clone https://github.com/sigma-terminal/sigma.git
+git clone https://github.com/desenyon/sigma.git
 cd sigma
 pip install -e .
 sigma --setup
@@ -58,6 +66,7 @@ sigma
 ```
 
 Launch the full terminal interface with:
+
 - Natural language queries with autocomplete
 - Real-time market data
 - Interactive charts and analysis
@@ -77,30 +86,30 @@ sigma chart SPY --period 1y
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `sigma` | Launch interactive mode |
-| `sigma ask "<query>"` | Ask a question |
-| `sigma quote <symbols>` | Get stock quotes |
+| Command                     | Description             |
+| --------------------------- | ----------------------- |
+| `sigma`                   | Launch interactive mode |
+| `sigma ask "<query>"`     | Ask a question          |
+| `sigma quote <symbols>`   | Get stock quotes        |
 | `sigma compare <symbols>` | Compare multiple stocks |
-| `sigma backtest <symbol>` | Run a backtest |
-| `sigma chart <symbol>` | Generate a chart |
-| `sigma --setup` | Run setup wizard |
-| `sigma --status` | Show configuration |
-| `sigma --list-models` | List available models |
+| `sigma backtest <symbol>` | Run a backtest          |
+| `sigma chart <symbol>`    | Generate a chart        |
+| `sigma --setup`           | Run setup wizard        |
+| `sigma --status`          | Show configuration      |
+| `sigma --list-models`     | List available models   |
 
 ### Interactive Commands
 
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/clear` | Clear chat history |
-| `/keys` | Configure API keys |
-| `/models` | Show available models |
-| `/provider <name>` | Switch AI provider |
-| `/backtest` | Show backtest strategies |
-| `/status` | Show configuration |
-| `/export` | Export conversation |
+| Command              | Description              |
+| -------------------- | ------------------------ |
+| `/help`            | Show available commands  |
+| `/clear`           | Clear chat history       |
+| `/keys`            | Configure API keys       |
+| `/models`          | Show available models    |
+| `/provider <name>` | Switch AI provider       |
+| `/backtest`        | Show backtest strategies |
+| `/status`          | Show configuration       |
+| `/export`          | Export conversation      |
 
 ---
 
@@ -108,14 +117,14 @@ sigma chart SPY --period 1y
 
 ### AI Providers
 
-| Provider | Models | Notes |
-|----------|--------|-------|
-| Google Gemini | gemini-2.0-flash, 1.5-pro | Free tier available |
-| OpenAI | gpt-4o, gpt-4o-mini | Best reasoning |
-| Anthropic | Claude claude-sonnet-4-20250514, Opus | Deep analysis |
-| Groq | Llama 3.3 70B | Ultra-fast |
-| xAI | Grok 2 | Real-time knowledge |
-| Ollama | Llama, Mistral, Phi | Local, private |
+| Provider      | Models                                | Notes               |
+| ------------- | ------------------------------------- | ------------------- |
+| Google Gemini | gemini-2.0-flash, 1.5-pro             | Free tier available |
+| OpenAI        | gpt-4o, gpt-4o-mini                   | Best reasoning      |
+| Anthropic     | Claude claude-sonnet-4-20250514, Opus | Deep analysis       |
+| Groq          | Llama 3.3 70B                         | Ultra-fast          |
+| xAI           | Grok 2                                | Real-time knowledge |
+| Ollama        | Llama, Mistral, Phi                   | Local, private      |
 
 ### Market Data
 
@@ -137,14 +146,14 @@ sigma chart SPY --period 1y
 
 ### Backtesting
 
-| Strategy | Description |
-|----------|-------------|
-| `sma_crossover` | SMA 20/50 crossover |
-| `rsi_mean_reversion` | RSI oversold/overbought |
-| `macd_momentum` | MACD signal crossover |
-| `bollinger_bands` | Bollinger band bounce |
-| `dual_momentum` | Absolute + relative momentum |
-| `breakout` | Price breakout system |
+| Strategy               | Description                  |
+| ---------------------- | ---------------------------- |
+| `sma_crossover`      | SMA 20/50 crossover          |
+| `rsi_mean_reversion` | RSI oversold/overbought      |
+| `macd_momentum`      | MACD signal crossover        |
+| `bollinger_bands`    | Bollinger band bounce        |
+| `dual_momentum`      | Absolute + relative momentum |
+| `breakout`           | Price breakout system        |
 
 ### Visualization
 
@@ -181,13 +190,13 @@ GOOGLE_API_KEY=your-key
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+L` | Clear screen |
-| `Ctrl+K` | Configure API keys |
-| `Ctrl+M` | Show models |
-| `Ctrl+C` | Exit |
-| `Tab` | Autocomplete |
+| Shortcut    | Action             |
+| ----------- | ------------------ |
+| `Ctrl+L`  | Clear screen       |
+| `Ctrl+K`  | Configure API keys |
+| `Ctrl+M`  | Show models        |
+| `Ctrl+C`  | Exit               |
+| `Tab`     | Autocomplete       |
 | `Up/Down` | History navigation |
 
 ---
@@ -236,11 +245,12 @@ sigma ask "which sectors are performing best?"
 ### Publishing the Formula
 
 1. Update `homebrew/sigma.rb` with the new version and SHA256:
+
    ```bash
    shasum -a 256 Sigma-3.2.0.dmg
    ```
-
 2. Create or update your Homebrew tap repository:
+
    ```bash
    # Create tap repo (first time only)
    mkdir homebrew-sigma && cd homebrew-sigma
@@ -250,8 +260,8 @@ sigma ask "which sectors are performing best?"
    git remote add origin https://github.com/yourusername/homebrew-sigma.git
    git push -u origin main
    ```
-
 3. Users can then install via:
+
    ```bash
    brew tap yourusername/sigma
    brew install --cask sigma
