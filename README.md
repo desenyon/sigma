@@ -1,77 +1,53 @@
-# σ Sigma
+# Sigma
 
-**Financial Research Agent**
+<div align="center">
 
-Sigma is an autonomous AI-powered financial research agent that provides institutional-grade market analysis. It combines multiple LLM providers with real-time market data to deliver comprehensive stock analysis, portfolio insights, and actionable investment research.
+```
+   _____ _                       
+  / ___/(_)___ _____ ___  ____ _ 
+  \__ \/ / __ `/ __ `__ \/ __ `/ 
+ ___/ / / /_/ / / / / / / /_/ /  
+/____/_/\__, /_/ /_/ /_/\__,_/   
+       /____/                    
+```
 
-## Features
+**Finance Research Agent**
 
-- **Real-Time Market Data** via yfinance
+Native macOS | Multi-Provider AI | Real-Time Data
 
-  - Stock quotes, historical prices, financial statements
-  - Analyst recommendations, insider trading, institutional holdings
-  - Options chains, dividends, earnings calendars
-  - Sector performance, market indices, market movers
-- **18+ Financial Tools**
+---
 
-  - `get_stock_quote` - Real-time price and key metrics
-  - `get_company_info` - Business description, financials
-  - `get_financial_statements` - Income, balance sheet, cash flow
-  - `get_analyst_recommendations` - Ratings and price targets
-  - `get_insider_trades` - Recent insider activity
-  - `get_institutional_holders` - Top institutional owners
-  - `get_options_chain` - Calls and puts data
-  - `get_dividends` - Dividend history and yield
-  - `technical_analysis` - RSI, MACD, moving averages
-  - `compare_stocks` - Multi-stock comparison
-  - `get_market_movers` - Top gainers/losers
-  - `get_sector_performance` - Sector ETF performance
-  - And more...
-- **Multiple LLM Providers**
+[Installation](#installation) | [Usage](#usage) | [Commands](#commands) | [Configuration](#configuration)
 
-  - OpenAI (GPT-4o)
-  - Anthropic (Claude)
-  - Google (Gemini)
-  - Groq (Llama)
-  - xAI (Grok)
-  - Ollama (local models)
-- **Clean Terminal UI**
+</div>
 
-  - Minimal, Claude Code-inspired interface
-  - Real-time tool execution display
-  - Markdown-formatted responses with tables
+---
+
+## Overview
+
+Sigma is an AI-powered Finance Research Agent that runs natively on macOS. Ask questions in natural language, get comprehensive market analysis, charts, and backtests in seconds.
+
+---
 
 ## Installation
 
+### Via pip
+
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/sigma.git
+pip install sigma-terminal
+sigma --setup
+```
+
+### From source
+
+```bash
+git clone https://github.com/sigma-terminal/sigma.git
 cd sigma
-
-# Install dependencies
 pip install -e .
-
-# Set up your API keys
-cp .env.example .env
-# Edit .env with your API keys
+sigma --setup
 ```
 
-## Configuration
-
-Create a `.env` file with your API keys:
-
-```bash
-# LLM Providers (at least one required)
-GOOGLE_API_KEY=your-google-api-key
-OPENAI_API_KEY=your-openai-api-key
-ANTHROPIC_API_KEY=your-anthropic-api-key
-GROQ_API_KEY=your-groq-api-key
-XAI_API_KEY=your-xai-api-key
-
-# Optional: Financial data APIs (for additional data sources)
-FMP_API_KEY=your-fmp-api-key
-POLYGON_API_KEY=your-polygon-api-key
-```
+---
 
 ## Usage
 
@@ -81,101 +57,173 @@ POLYGON_API_KEY=your-polygon-api-key
 sigma
 ```
 
+Launch the full terminal interface with:
+- Natural language queries with autocomplete
+- Real-time market data
+- Interactive charts and analysis
+- Conversation history
+
+### CLI Mode
+
+```bash
+sigma ask "analyze AAPL technicals"
+sigma quote AAPL MSFT GOOGL
+sigma compare NVDA AMD INTC
+sigma backtest TSLA --strategy macd_momentum
+sigma chart SPY --period 1y
 ```
-  σ Sigma Financial Research Agent
-
-  Provider: google │ Model: gemini-2.0-flash
-  Type /help for commands, /quit to exit
-
-  > Analyze NVDA stock
-
-  → get_stock_quote(NVDA) ✓ 245ms
-  → get_company_info(NVDA) ✓ 312ms
-  → get_analyst_recommendations(NVDA) ✓ 187ms
-  → technical_analysis(NVDA) ✓ 423ms
-
-  Called 4 tools in 1.2s
-
-  ## NVIDIA (NVDA) Analysis
-
-  **Current Price:** $191.13
-  **Market Cap:** $4.67T
-  ...
-```
-
-### Commands
-
-- `/provider <name>` - Switch LLM provider (openai, anthropic, google, groq, ollama)
-- `/model <name>` - Set model name
-- `/clear` - Clear conversation history
-- `/status` - Show current configuration
-- `/help` - Show help
-- `/quit` - Exit
-
-### Example Queries
-
-```
-> What is the current price of AAPL?
-> Compare MSFT, GOOGL, and AMZN on valuation metrics
-> Give me a comprehensive analysis of Tesla
-> What are the top market gainers today?
-> Technical analysis on SPY
-> Show me insider trades for NVDA
-> What's the options chain for AAPL?
-```
-
-## Python API
-
-```python
-import asyncio
-from sigma import SigmaAgent, LLMProvider
-
-async def main():
-    # Create agent
-    agent = SigmaAgent(provider=LLMProvider.GOOGLE)
-  
-    # Run analysis
-    result = await agent.run("Analyze AAPL stock")
-    print(result)
-  
-    # Get execution stats
-    stats = agent.get_stats()
-    print(f"Tools called: {stats['tools_called']}")
-
-asyncio.run(main())
-```
-
-## Architecture
-
-```
-sigma/
-├── core/
-│   ├── agent.py      # Main agent logic
-│   ├── config.py     # Configuration management
-│   ├── llm.py        # LLM provider implementations
-│   └── models.py     # Data models
-├── tools/
-│   └── financial.py  # Financial data tools (yfinance)
-├── ui/
-│   └── __init__.py   # UI components
-└── app.py            # CLI application
-```
-
-## Requirements
-
-- Python 3.10+
-- httpx
-- pydantic
-- pydantic-settings
-- rich
-- yfinance
-- pandas
-- numpy
-
-## License
-
-Check File
 
 ---
 
-*Sigma - Institutional-grade financial research at your fingertips.*
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `sigma` | Launch interactive mode |
+| `sigma ask "<query>"` | Ask a question |
+| `sigma quote <symbols>` | Get stock quotes |
+| `sigma compare <symbols>` | Compare multiple stocks |
+| `sigma backtest <symbol>` | Run a backtest |
+| `sigma chart <symbol>` | Generate a chart |
+| `sigma --setup` | Run setup wizard |
+| `sigma --status` | Show configuration |
+| `sigma --list-models` | List available models |
+
+### Interactive Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/clear` | Clear chat history |
+| `/keys` | Configure API keys |
+| `/models` | Show available models |
+| `/provider <name>` | Switch AI provider |
+| `/backtest` | Show backtest strategies |
+| `/status` | Show configuration |
+| `/export` | Export conversation |
+
+---
+
+## Features
+
+### AI Providers
+
+| Provider | Models | Notes |
+|----------|--------|-------|
+| Google Gemini | gemini-2.0-flash, 1.5-pro | Free tier available |
+| OpenAI | gpt-4o, gpt-4o-mini | Best reasoning |
+| Anthropic | Claude claude-sonnet-4-20250514, Opus | Deep analysis |
+| Groq | Llama 3.3 70B | Ultra-fast |
+| xAI | Grok 2 | Real-time knowledge |
+| Ollama | Llama, Mistral, Phi | Local, private |
+
+### Market Data
+
+- Real-time quotes and price data
+- Historical OHLCV with adjustments
+- Technical indicators (RSI, MACD, Bollinger, MAs)
+- Fundamental data and financials
+- Analyst recommendations
+- Insider and fund activity
+
+### Analysis
+
+- Performance metrics (Sharpe, Sortino, Calmar)
+- Risk analysis (VaR, drawdowns, volatility)
+- Sector and market overview
+- Multi-asset comparison
+- Regime detection
+- Seasonality patterns
+
+### Backtesting
+
+| Strategy | Description |
+|----------|-------------|
+| `sma_crossover` | SMA 20/50 crossover |
+| `rsi_mean_reversion` | RSI oversold/overbought |
+| `macd_momentum` | MACD signal crossover |
+| `bollinger_bands` | Bollinger band bounce |
+| `dual_momentum` | Absolute + relative momentum |
+| `breakout` | Price breakout system |
+
+### Visualization
+
+- Candlestick charts with volume
+- Technical overlays
+- Performance curves
+- Comparison charts
+
+---
+
+## Configuration
+
+Configuration is stored in `~/.sigma/`.
+
+### Environment Variables
+
+```bash
+export GOOGLE_API_KEY="your-key"
+export OPENAI_API_KEY="your-key"
+export ANTHROPIC_API_KEY="your-key"
+```
+
+### Config File
+
+Create `~/.sigma/config.env`:
+
+```
+DEFAULT_PROVIDER=google
+DEFAULT_MODEL=gemini-2.0-flash
+GOOGLE_API_KEY=your-key
+```
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+L` | Clear screen |
+| `Ctrl+K` | Configure API keys |
+| `Ctrl+M` | Show models |
+| `Ctrl+C` | Exit |
+| `Tab` | Autocomplete |
+| `Up/Down` | History navigation |
+
+---
+
+## Examples
+
+```bash
+# Get a quick stock overview
+sigma ask "give me a summary of AAPL"
+
+# Technical analysis
+sigma ask "what do the technicals say about NVDA?"
+
+# Compare stocks
+sigma ask "compare AAPL MSFT GOOGL performance this year"
+
+# Backtest a strategy
+sigma ask "backtest SMA crossover on SPY for 2 years"
+
+# Market overview
+sigma ask "how are the markets doing today?"
+
+# Sector analysis
+sigma ask "which sectors are performing best?"
+```
+
+---
+
+## License
+
+MIT License - See [LICENSE](LICENSE)
+
+---
+
+<div align="center">
+
+**Sigma - Finance Research Agent**
+
+</div>
