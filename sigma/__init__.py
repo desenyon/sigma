@@ -1,6 +1,6 @@
 """Sigma - Elite Financial Research Agent."""
 
-__version__ = "2.0.0"
+__version__ = "2.0.2"
 __author__ = "Sigma"
 
 from sigma.core.agent import SigmaAgent

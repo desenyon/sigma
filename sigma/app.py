@@ -23,7 +23,7 @@ from sigma.core.config import LLMProvider, get_settings
 console = Console()
 
 # Version
-VERSION = "2.0.0"
+VERSION = "2.0.2"
 
 # ASCII Art Banner
 BANNER = """[bold bright_blue]
