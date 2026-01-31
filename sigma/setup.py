@@ -1,4 +1,4 @@
-"""Sigma v3.2.0 - Setup Wizard."""
+"""Sigma v3.3.0 - Setup Wizard."""
 
 import os
 import sys
@@ -19,10 +19,13 @@ from .config import (
     LLMProvider,
     AVAILABLE_MODELS,
     CONFIG_DIR,
+    detect_lean_installation,
+    detect_ollama,
+    install_lean_cli_sync,
 )
 
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 SIGMA = "σ"
 console = Console()
 
@@ -35,7 +38,7 @@ BANNER = """
 [bold blue]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold blue]
 [bold blue]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
 
-[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.2.0[/dim]
+[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.3.0[/dim]
 """
 
 
@@ -258,22 +261,87 @@ class SetupWizard:
         console.print(Panel("[bold]Step 5: Integrations[/bold]", border_style="blue"))
         console.print()
         
-        # Ollama (if not primary)
+        # Ollama detection
         if self.settings.default_provider != LLMProvider.OLLAMA:
-            if Confirm.ask("Setup Ollama for local fallback?", default=False):
-                console.print("[dim]Install: https://ollama.ai/download[/dim]")
-                console.print("[dim]Run: ollama pull llama3.2[/dim]")
+            ollama_running, ollama_host = detect_ollama()
+            if ollama_running and ollama_host:
+                console.print(f"[green]✓[/green] Ollama detected at {ollama_host}")
+                if Confirm.ask("Enable Ollama as local fallback?", default=True):
+                    save_setting("ollama_host", ollama_host)
+                    console.print(f"[cyan]{SIGMA}[/cyan] Ollama enabled")
+            else:
+                if Confirm.ask("Setup Ollama for local fallback?", default=False):
+                    console.print("[dim]Install: https://ollama.ai/download[/dim]")
+                    console.print("[dim]Run: ollama pull llama3.2[/dim]")
         
-        # LEAN
-        if Confirm.ask("Setup LEAN/QuantConnect?", default=False):
-            console.print("[dim]LEAN provides advanced backtesting.[/dim]")
-            console.print("[dim]Install: pip install lean[/dim]")
+        console.print()
+        
+        # LEAN auto-detection
+        lean_installed, lean_cli, lean_dir = detect_lean_installation()
+        
+        if lean_installed:
+            console.print(f"[green]✓[/green] LEAN/QuantConnect detected!")
+            if lean_cli:
+                console.print(f"  [dim]CLI: {lean_cli}[/dim]")
+            if lean_dir:
+                console.print(f"  [dim]Directory: {lean_dir}[/dim]")
             console.print()
             
-            lean_path = Prompt.ask("LEAN CLI path (or Enter to skip)", default="")
-            if lean_path:
-                save_setting("lean_cli_path", lean_path)
-                console.print(f"[cyan]{SIGMA}[/cyan] LEAN configured")
+            if Confirm.ask("Enable LEAN integration?", default=True):
+                save_setting("lean_enabled", "true")
+                if lean_cli:
+                    save_setting("lean_cli_path", lean_cli)
+                if lean_dir:
+                    save_setting("lean_directory", lean_dir)
+                console.print(f"[cyan]{SIGMA}[/cyan] LEAN integration enabled")
+            else:
+                save_setting("lean_enabled", "false")
+        else:
+            console.print("[yellow]![/yellow] LEAN/QuantConnect not detected")
+            console.print("[dim]LEAN provides institutional-grade backtesting with QuantConnect's engine.[/dim]")
+            console.print()
+            
+            lean_choice = Prompt.ask(
+                "Would you like to",
+                choices=["install", "manual", "skip"],
+                default="skip"
+            )
+            
+            if lean_choice == "install":
+                console.print()
+                console.print(f"[cyan]{SIGMA}[/cyan] Installing LEAN CLI via pip...")
+                console.print("[dim]This may take a minute...[/dim]")
+                
+                with console.status("[bold blue]Installing LEAN...[/bold blue]"):
+                    success, message = install_lean_cli_sync()
+                
+                if success:
+                    console.print(f"[green]✓[/green] {message}")
+                    save_setting("lean_enabled", "true")
+                    save_setting("lean_cli_path", "lean")
+                    
+                    # Verify installation
+                    lean_installed, lean_cli, lean_dir = detect_lean_installation()
+                    if lean_cli:
+                        console.print(f"[cyan]{SIGMA}[/cyan] LEAN CLI ready: {lean_cli}")
+                else:
+                    console.print(f"[red]✗[/red] {message}")
+                    console.print("[dim]You can install manually later: pip install lean[/dim]")
+            
+            elif lean_choice == "manual":
+                console.print()
+                console.print("[bold]Manual Installation Options:[/bold]")
+                console.print("  1. [cyan]pip install lean[/cyan] - LEAN CLI (recommended)")
+                console.print("  2. [cyan]https://github.com/QuantConnect/Lean[/cyan] - Full source")
+                console.print()
+                
+                lean_path = Prompt.ask("Enter LEAN CLI path (or Enter to skip)", default="")
+                if lean_path:
+                    save_setting("lean_enabled", "true")
+                    save_setting("lean_cli_path", lean_path)
+                    console.print(f"[cyan]{SIGMA}[/cyan] LEAN configured: {lean_path}")
+            else:
+                console.print("[dim]Skipping LEAN setup. You can configure it later.[/dim]")
     
     def _show_summary(self):
         """Show summary."""
