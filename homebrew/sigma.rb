@@ -1,6 +1,6 @@
 cask "sigma" do
   version "3.2.0"
-  sha256 :no_check  # Replace with actual SHA256 when publishing
+  sha256 "505706a205e1555bf11f80c8e12d073f41e73a7379536546859ff63e3517dac8" # Replace with actual SHA256 when publishing
 
   url "https://github.com/desenyon/sigma/releases/download/v#{version}/Sigma-#{version}.dmg"
   name "Sigma"
