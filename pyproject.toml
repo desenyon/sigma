@@ -1,0 +1,79 @@
+[project]
+name = "sigma-terminal"
+version = "2.0.0"
+description = "Financial Research Agent"
+readme = "README.md"
+license = { text = "Proprietary" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Desenyon" }
+]
+keywords = ["finance", "research", "agent", "llm", "trading", "backtesting", "stocks"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: Other/Proprietary License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "rich>=13.0",
+    "yfinance>=0.2.40",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "python-dotenv>=1.0.0",
+    "plotext>=5.2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4.0",
+    "mypy>=1.10",
+    "build",
+    "twine",
+]
+
+[project.scripts]
+sigma = "sigma.app:main"
+
+[project.urls]
+Homepage = "https://github.com/desenyon/sigma"
+Documentation = "https://github.com/desenyon/sigma/wiki"
+Changelog = "https://github.com/desenyon/sigma/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sigma"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
