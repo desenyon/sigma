@@ -31,7 +31,7 @@ class SigmaEngine:
         self.data_cache = {}
         self.lineage_tracker = []
     
-    async def process_query(self, query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def process_query(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Process a user query end-to-end."""
         # Parse intent
         plan = self.intent_parser.parse(query)
@@ -157,7 +157,7 @@ class SigmaEngine:
         """Get available prompt presets."""
         return self.presets.list_presets()
     
-    def apply_preset(self, preset_name: str, **kwargs) -> str:
+    def apply_preset(self, preset_name: str, **kwargs) -> Optional[str]:
         """Apply a prompt preset."""
         return self.presets.get_preset(preset_name, **kwargs)
     
@@ -367,7 +367,7 @@ class ShowWorkLogger:
         self.assumptions = []
         self.scoring_rubric = {}
     
-    def log_step(self, step: str, details: Dict[str, Any] = None):
+    def log_step(self, step: str, details: Optional[Dict[str, Any]] = None):
         """Log a reasoning step."""
         self.steps.append({
             "timestamp": datetime.now().isoformat(),

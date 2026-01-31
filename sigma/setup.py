@@ -248,10 +248,10 @@ class SetupWizard:
         
         # Cache
         if Confirm.ask("Enable caching?", default=True):
-            save_setting("cache_enabled", True)
+            save_setting("cache_enabled", "true")
             console.print(f"[cyan]{SIGMA}[/cyan] Caching enabled")
         else:
-            save_setting("cache_enabled", False)
+            save_setting("cache_enabled", "false")
     
     def _setup_integrations(self):
         """Optional integrations."""

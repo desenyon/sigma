@@ -116,26 +116,44 @@ class YFinanceProvider(DataProvider):
         
         if not splits.empty:
             for dt, ratio in splits.items():
-                action_date = dt.date() if hasattr(dt, 'date') else dt
-                if start <= action_date <= end:
-                    actions.append(CorporateAction(
-                        date=action_date,
-                        symbol=symbol,
-                        action_type="split",
-                        details={"ratio": float(ratio)},
-                        adjustment_factor=float(ratio),
-                    ))
+                try:
+                    if hasattr(dt, 'date'):
+                        action_date = dt.date()
+                    elif hasattr(dt, 'to_pydatetime'):
+                        action_date = dt.to_pydatetime().date()
+                    else:
+                        action_date = date.fromisoformat(str(dt)[:10])
+                    if start <= action_date <= end:
+                        actions.append(CorporateAction(
+                            date=action_date,
+                            symbol=symbol,
+                            action_type="split",
+                            ratio=float(ratio),
+                            adjustment_factor=float(ratio),
+                            details={"ratio": float(ratio)},
+                        ))
+                except (TypeError, AttributeError, ValueError):
+                    continue
         
         if not dividends.empty:
             for dt, amount in dividends.items():
-                action_date = dt.date() if hasattr(dt, 'date') else dt
-                if start <= action_date <= end:
-                    actions.append(CorporateAction(
-                        date=action_date,
-                        symbol=symbol,
-                        action_type="dividend",
-                        details={"amount": float(amount)},
-                    ))
+                try:
+                    if hasattr(dt, 'date'):
+                        action_date = dt.date()
+                    elif hasattr(dt, 'to_pydatetime'):
+                        action_date = dt.to_pydatetime().date()
+                    else:
+                        action_date = date.fromisoformat(str(dt)[:10])
+                    if start <= action_date <= end:
+                        actions.append(CorporateAction(
+                            date=action_date,
+                            symbol=symbol,
+                            action_type="dividend",
+                            amount=float(amount),
+                            details={"amount": float(amount)},
+                        ))
+                except (TypeError, AttributeError, ValueError):
+                    continue
         
         return actions
     
@@ -246,7 +264,7 @@ class DataQualityEngine:
     """Perform data quality checks and cleaning."""
     
     @staticmethod
-    def check_quality(df: pd.DataFrame, symbol: str = None) -> DataQualityReport:
+    def check_quality(df: pd.DataFrame, symbol: Optional[str] = None) -> DataQualityReport:
         """Run comprehensive quality checks on data."""
         total = len(df)
         
@@ -350,13 +368,17 @@ class DataQualityEngine:
         df = df.copy()
         
         for split in sorted(splits, key=lambda x: x.date, reverse=True):
-            if split.adjustment_factor:
-                mask = df.index.date < split.date
-                for col in ["Open", "High", "Low", "Close"]:
-                    if col in df.columns:
-                        df.loc[mask, col] = df.loc[mask, col] / split.adjustment_factor
-                if "Volume" in df.columns:
-                    df.loc[mask, "Volume"] = df.loc[mask, "Volume"] * split.adjustment_factor
+            factor = split.adjustment_factor or split.ratio
+            if factor:
+                try:
+                    mask = pd.to_datetime(df.index).date < split.date
+                    for col in ["Open", "High", "Low", "Close"]:
+                        if col in df.columns:
+                            df.loc[mask, col] = df.loc[mask, col] / factor
+                    if "Volume" in df.columns:
+                        df.loc[mask, "Volume"] = df.loc[mask, "Volume"] * factor
+                except (TypeError, AttributeError):
+                    continue
         
         return df
 

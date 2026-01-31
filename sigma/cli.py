@@ -3,6 +3,7 @@
 import argparse
 import json
 import sys
+from typing import Optional
 
 from rich.console import Console
 from rich.table import Table
@@ -275,7 +276,7 @@ def handle_quotes(symbols: list) -> int:
     return 0
 
 
-def handle_chart(symbol: str, period: str, output: str = None) -> int:
+def handle_chart(symbol: str, period: str, output: Optional[str] = None) -> int:
     """Handle chart command."""
     from .charts import create_candlestick_chart
     import yfinance as yf

@@ -73,6 +73,11 @@ class SigmaCli < Formula
     sha256 "REPLACE_WITH_ACTUAL_SHA256"
   end
 
+  resource "plotext" do
+    url "https://files.pythonhosted.org/packages/source/p/plotext/plotext-5.2.8.tar.gz"
+    sha256 "REPLACE_WITH_ACTUAL_SHA256"
+  end
+
   # HTTP and API
   resource "httpx" do
     url "https://files.pythonhosted.org/packages/source/h/httpx/httpx-0.26.0.tar.gz"

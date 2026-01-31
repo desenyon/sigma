@@ -149,11 +149,11 @@ class GoogleLLM(BaseLLM):
                                         contents=new_contents,
                                         config=config,
                                     )
-                                    return final_final.text
+                                    return final_final.text or ""
                     
-                    return final_response.text
+                    return final_response.text or ""
         
-        return response.text
+        return response.text or ""
 
 
 class OpenAILLM(BaseLLM):

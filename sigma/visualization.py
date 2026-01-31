@@ -170,9 +170,9 @@ class ChartBuilder:
         title: str = "Price Chart",
         ohlc: bool = False,
         volume: bool = True,
-        ma_periods: List[int] = None,
-        events: List[Dict[str, Any]] = None,
-        regimes: pd.Series = None,
+        ma_periods: Optional[List[int]] = None,
+        events: Optional[List[Dict[str, Any]]] = None,
+        regimes: Optional[pd.Series] = None,
     ) -> go.Figure:
         """
         Create price chart with optional overlays.
@@ -284,10 +284,10 @@ class ChartBuilder:
     def equity_curve(
         self,
         returns: pd.Series,
-        benchmark_returns: pd.Series = None,
+        benchmark_returns: Optional[pd.Series] = None,
         title: str = "Equity Curve",
         show_drawdown: bool = True,
-        regimes: pd.Series = None,
+        regimes: Optional[pd.Series] = None,
     ) -> go.Figure:
         """
         Create equity curve with drawdown overlay.
@@ -365,7 +365,7 @@ class ChartBuilder:
         self,
         returns: pd.Series,
         title: str = "Returns Distribution",
-        benchmark_returns: pd.Series = None,
+        benchmark_returns: Optional[pd.Series] = None,
     ) -> go.Figure:
         """Create returns distribution histogram with statistics."""
         
@@ -424,7 +424,7 @@ class ChartBuilder:
         returns: pd.Series,
         window: int = 63,
         title: str = "Rolling Metrics",
-        metrics: List[str] = None,
+        metrics: Optional[List[str]] = None,
     ) -> go.Figure:
         """Create rolling metrics chart."""
         

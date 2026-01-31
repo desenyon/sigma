@@ -45,6 +45,7 @@ dependencies = [
     # Visualization
     "plotly>=5.18.0",
     "kaleido>=0.2.1",
+    "plotext>=5.2.8",
     
     # HTTP and API
     "httpx>=0.26.0",

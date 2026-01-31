@@ -322,7 +322,7 @@ class IntentParser:
             return (
                 date.fromisoformat(date_match.group(1)),
                 date.fromisoformat(date_match.group(2)),
-                None
+                ""
             )
         
         # Lookback patterns
@@ -438,7 +438,7 @@ class PromptPresets:
     }
     
     @classmethod
-    def get_preset(cls, name: str, **kwargs) -> str:
+    def get_preset(cls, name: str, **kwargs) -> Optional[str]:
         """Get a preset template with filled parameters."""
         if name not in cls.PRESETS:
             return None
