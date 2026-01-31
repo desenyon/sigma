@@ -907,13 +907,13 @@ def run_lean_backtest(
         result["status"] = "error"
         result["error"] = str(e)
     
-    # Provide QuantConnect instructions for institutional-grade backtest
+    # Provide QuantConnect instructions for advanced backtest
     result["quantconnect_instructions"] = [
-        "For INSTITUTIONAL-GRADE backtesting with full market data:",
+        "For ADVANCED backtesting with full market data:",
         "1. Go to https://www.quantconnect.com (FREE account)",
         "2. Click 'Algorithm Lab' -> 'Create New Algorithm'",
         f"3. Paste the code from: {algo_file}",
-        "4. Click 'Backtest' for institutional data!"
+        "4. Click 'Backtest' for professional data!"
     ]
     
     result["algorithm_ready"] = True
@@ -930,7 +930,7 @@ def run_simple_backtest(
 ) -> dict[str, Any]:
     """Run a comprehensive Python backtest using yfinance data.
     
-    This provides institutional-quality results with detailed metrics,
+    This provides professional-quality results with detailed metrics,
     charts, and analysis. For even more accurate results, use QuantConnect.
     """
     import yfinance as yf
@@ -1176,10 +1176,16 @@ def run_simple_backtest(
     result["trades"] = trades[-15:]  # Last 15 trades
     result["monthly_returns"] = monthly_pcts[-12:]  # Last 12 months
     
-    # Generate charts
+    # Generate charts - IMPORTANT: fully clear plotext state before each chart
     try:
+        import plotext as plt
+        
         # 1. Equity Curve Chart
+        plt.clf()
+        plt.clt()
+        plt.cld()
         plt.clear_figure()
+        plt.clear_data()
         plt.plotsize(120, 25)
         plt.theme("dark")
         plt.canvas_color("black")
@@ -1205,7 +1211,11 @@ def run_simple_backtest(
         result["charts"]["equity_curve"] = plt.build()
         
         # 2. Drawdown Chart
+        plt.clf()
+        plt.clt()
+        plt.cld()
         plt.clear_figure()
+        plt.clear_data()
         plt.plotsize(120, 15)
         plt.theme("dark")
         plt.canvas_color("black")
@@ -1219,7 +1229,11 @@ def run_simple_backtest(
         
         # 3. Trade Distribution
         if sell_trades:
+            plt.clf()
+            plt.clt()
+            plt.cld()
             plt.clear_figure()
+            plt.clear_data()
             plt.plotsize(80, 12)
             plt.theme("dark")
             plt.canvas_color("black")
@@ -1235,7 +1249,11 @@ def run_simple_backtest(
         
         # 4. Monthly Returns Bar Chart
         if monthly_pcts:
+            plt.clf()
+            plt.clt()
+            plt.cld()
             plt.clear_figure()
+            plt.clear_data()
             plt.plotsize(100, 12)
             plt.theme("dark")
             plt.canvas_color("black")
