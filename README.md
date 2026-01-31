@@ -3,12 +3,12 @@
 <div align="center">
 
 ```
-   _____ _                     
+   _____ _                   
   / ___/(_)___ _____ ___  ____ _ 
   \__ \/ / __ `/ __ `__ \/ __ `/ 
  ___/ / / /_/ / / / / / / /_/ /  
 /____/_/\__, /_/ /_/ /_/\__,_/   
-       /____/                  
+       /____/                
 ```
 
 **Finance Research Agent**
@@ -221,60 +221,6 @@ sigma ask "how are the markets doing today?"
 
 # Sector analysis
 sigma ask "which sectors are performing best?"
-```
-
----
-
-## Publishing to Homebrew
-
-### Creating a Release
-
-1. Update version in `pyproject.toml`, `sigma/__init__.py`, and `sigma/cli.py`
-2. Create a git tag: `git tag v3.2.0`
-3. Push to GitHub: `git push origin main --tags`
-4. Build the app bundle:
-   ```bash
-   python scripts/create_app.py
-   ```
-5. Create a DMG:
-   ```bash
-   hdiutil create -volname "Sigma" -srcfolder Sigma.app -ov Sigma-3.2.0.dmg
-   ```
-6. Upload DMG to GitHub releases
-
-### Publishing the Formula
-
-1. Update `homebrew/sigma.rb` with the new version and SHA256:
-
-   ```bash
-   shasum -a 256 Sigma-3.2.0.dmg
-   ```
-2. Create or update your Homebrew tap repository:
-
-   ```bash
-   # Create tap repo (first time only)
-   mkdir homebrew-sigma && cd homebrew-sigma
-   git init
-   cp ../sigma/homebrew/sigma.rb Formula/
-   git add . && git commit -m "Add sigma formula v3.2.0"
-   git remote add origin https://github.com/yourusername/homebrew-sigma.git
-   git push -u origin main
-   ```
-3. Users can then install via:
-
-   ```bash
-   brew tap yourusername/sigma
-   brew install --cask sigma
-   ```
-
-### PyPI Publishing
-
-```bash
-# Build package
-python -m build
-
-# Upload to PyPI
-python -m twine upload dist/*
 ```
 
 ---
