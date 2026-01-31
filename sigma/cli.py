@@ -1,4 +1,4 @@
-"""CLI entry point for Sigma v3.2.0."""
+"""CLI entry point for Sigma v3.3.0."""
 
 import argparse
 import json
@@ -10,10 +10,13 @@ from rich.table import Table
 from rich.panel import Panel
 
 from .app import launch
-from .config import get_settings, save_api_key, save_setting, AVAILABLE_MODELS, LLMProvider
+from .config import (
+    get_settings, save_api_key, save_setting, AVAILABLE_MODELS, LLMProvider,
+    is_first_run, mark_first_run_complete, detect_lean_installation, detect_ollama
+)
 
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 
 console = Console()
 
@@ -28,7 +31,7 @@ def show_banner():
 [bold white]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold white]
 [bold white]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold white]
 
-[dim]v3.2.0[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
+[dim]v3.3.0[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
 """
     console.print(banner)
 
@@ -37,7 +40,7 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="sigma",
-        description="Sigma v3.2.0 - Finance Research Agent",
+        description="Sigma v3.3.0 - Finance Research Agent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -126,7 +129,35 @@ Examples:
     
     if args.setup:
         from .setup import run_setup
-        return 0 if run_setup() else 1
+        result = run_setup()
+        if result:
+            mark_first_run_complete()
+            # After manual setup, ask if user wants to launch
+            from rich.prompt import Confirm
+            if Confirm.ask("\n[bold cyan]σ[/bold cyan] Launch Sigma now?", default=True):
+                launch()
+        return 0 if result else 1
+    
+    # Auto-launch setup on first run, then start interactive
+    if is_first_run():
+        console.print("\n[bold cyan]σ[/bold cyan] [bold]Welcome to Sigma![/bold]")
+        console.print("[dim]First time setup detected. Launching setup wizard...[/dim]\n")
+        from .setup import run_setup
+        result = run_setup()
+        mark_first_run_complete()  # Always mark complete to not ask again
+        
+        if result:
+            console.print("\n[bold green]✓ Setup complete![/bold green]")
+            console.print("[dim]Launching Sigma...[/dim]\n")
+            import time
+            time.sleep(1)  # Brief pause for user to see message
+            launch()
+            return 0
+        else:
+            console.print("\n[yellow]Setup skipped.[/yellow] You can run [bold]sigma --setup[/bold] later.")
+            console.print("[dim]Launching Sigma anyway...[/dim]\n")
+            launch()
+            return 0
     
     if args.list_models:
         console.print("\n[bold]Available Models by Provider:[/bold]\n")
