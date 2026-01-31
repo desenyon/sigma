@@ -1,7 +1,8 @@
-"""Sigma v3.2.0 - Finance Research Agent."""
+"""Sigma v3.3.0 - Finance Research Agent."""
 
 import asyncio
 import os
+import re
 from datetime import datetime
 from typing import Optional, List
 
@@ -12,7 +13,7 @@ from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, ScrollableContainer
+from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Footer, Input, RichLog, Static
 from textual.suggester import Suggester
 
@@ -22,43 +23,32 @@ from .tools import TOOLS, execute_tool
 from .backtest import run_backtest, get_available_strategies, BACKTEST_TOOL
 
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 SIGMA = "σ"
 
-# Animated sigma logo frames for thinking state
-THINKING_LOGO_FRAMES = [
-    """[bold blue]
-    ███████╗██╗ ██████╗ ███╗   ███╗ █████╗ 
-    ██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗
-    ███████╗██║██║  ███╗██╔████╔██║███████║
-    ╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║
-    ███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║
-    ╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
-              [dim]analyzing[/dim]""",
-    """[bold cyan]
-    ███████╗██╗ ██████╗ ███╗   ███╗ █████╗ 
-    ██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗
-    ███████╗██║██║  ███╗██╔████╔██║███████║
-    ╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║
-    ███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║
-    ╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold cyan]
-              [dim]analyzing.[/dim]""",
-    """[bold white]
-    ███████╗██╗ ██████╗ ███╗   ███╗ █████╗ 
-    ██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗
-    ███████╗██║██║  ███╗██╔████╔██║███████║
-    ╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║
-    ███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║
-    ╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold white]
-              [dim]analyzing..[/dim]""",
-    """[bold cyan]
-    ███████╗██╗ ██████╗ ███╗   ███╗ █████╗ 
-    ██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗
-    ███████╗██║██║  ███╗██╔████╔██║███████║
-    ╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║
-    ███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║
-    ╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold cyan]
-              [dim]analyzing...[/dim]""",
+# Common stock tickers for recognition
+COMMON_TICKERS = {
+    "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "NVDA", "META", "TSLA", "BRK.A", "BRK.B",
+    "JPM", "JNJ", "V", "PG", "UNH", "HD", "MA", "DIS", "PYPL", "BAC", "ADBE", "NFLX",
+    "CRM", "INTC", "AMD", "CSCO", "PEP", "KO", "ABT", "NKE", "MRK", "PFE", "TMO",
+    "COST", "AVGO", "WMT", "ACN", "LLY", "MCD", "DHR", "TXN", "NEE", "PM", "HON",
+    "UPS", "BMY", "QCOM", "LOW", "MS", "RTX", "UNP", "ORCL", "IBM", "GE", "CAT",
+    "SBUX", "AMAT", "GS", "BLK", "DE", "AMT", "NOW", "ISRG", "LMT", "MDLZ", "AXP",
+    "SYK", "BKNG", "PLD", "GILD", "ADI", "TMUS", "CVS", "MMC", "ZTS", "CB", "C",
+    "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VXX", "ARKK", "XLF", "XLK", "XLE",
+}
+
+# Small sigma animation frames (minimal footprint)
+SMALL_SIGMA_FRAMES = [
+    "[bold blue]σ[/bold blue]",
+    "[bold cyan]σ[/bold cyan]",
+    "[bold white]σ[/bold white]",
+    "[bold #60a5fa]σ[/bold #60a5fa]",
+]
+
+# Tool call animation frames
+TOOL_CALL_FRAMES = [
+    "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"
 ]
 
 # Welcome banner - clean design
@@ -70,7 +60,7 @@ WELCOME_BANNER = """
 [bold blue]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold blue]
 [bold blue]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
 
-[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.2.0 | Native macOS[/dim]
+[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.3.0 | Native macOS[/dim]
 """
 
 SYSTEM_PROMPT = """You are Sigma, a Finance Research Agent. You provide comprehensive market analysis, trading strategies, and investment insights.
@@ -95,8 +85,9 @@ RESPONSE STYLE:
 
 When users ask about stocks, always gather current data using your tools before responding."""
 
-# Autocomplete suggestions
+# Enhanced autocomplete suggestions with more variety
 SUGGESTIONS = [
+    # Analysis commands
     "analyze AAPL",
     "analyze MSFT", 
     "analyze GOOGL",
@@ -104,30 +95,79 @@ SUGGESTIONS = [
     "analyze TSLA",
     "analyze META",
     "analyze AMZN",
+    "analyze AMD",
+    "analyze SPY",
+    # Comparisons
     "compare AAPL MSFT GOOGL",
     "compare NVDA AMD INTC",
+    "compare META GOOGL AMZN",
+    "compare TSLA RIVN LCID",
+    # Technical
     "technical analysis of AAPL",
     "technical analysis of SPY",
+    "technical analysis of NVDA",
+    "technical analysis of QQQ",
+    # Backtesting
     "backtest SMA crossover on AAPL",
     "backtest RSI strategy on SPY",
+    "backtest MACD on NVDA",
+    "backtest momentum on QQQ",
+    # Market
     "market overview",
     "sector performance",
+    "what sectors are hot today",
+    # Quotes
     "get quote for AAPL",
     "price of NVDA",
+    "how is TSLA doing",
+    # Fundamentals
     "fundamentals of MSFT",
-    "insider trading activity",
-    "institutional holders",
-    "analyst recommendations",
+    "financials for AAPL",
+    "earnings of NVDA",
+    # Activity
+    "insider trading for AAPL",
+    "institutional holders of NVDA",
+    "analyst recommendations for TSLA",
+    # Natural language queries
+    "what should I know about AAPL",
+    "is NVDA overvalued",
+    "best tech stocks right now",
+    "should I buy TSLA",
+    # Commands
     "/help",
     "/clear",
     "/keys",
     "/models",
     "/status",
+    "/backtest",
 ]
 
 
+def extract_tickers(text: str) -> List[str]:
+    """Extract stock tickers from text."""
+    # Look for common patterns: $AAPL, or standalone uppercase words
+    # Only match if it's a known ticker or starts with $
+    words = text.upper().split()
+    tickers = []
+    
+    for word in words:
+        # Clean the word
+        clean = word.strip('.,!?()[]{}":;')
+        
+        # Check for $TICKER format
+        if clean.startswith('$'):
+            ticker = clean[1:]
+            if ticker and ticker.isalpha() and len(ticker) <= 5:
+                tickers.append(ticker)
+        # Check if it's a known ticker
+        elif clean in COMMON_TICKERS:
+            tickers.append(clean)
+    
+    return list(dict.fromkeys(tickers))  # Dedupe while preserving order
+
+
 class SigmaSuggester(Suggester):
-    """Autocomplete suggester for Sigma."""
+    """Enhanced autocomplete suggester with ticker recognition."""
     
     def __init__(self):
         super().__init__(use_cache=True, case_sensitive=False)
@@ -138,9 +178,24 @@ class SigmaSuggester(Suggester):
             return None
         
         value_lower = value.lower()
+        
+        # Check for ticker pattern (all caps or starts with $)
+        if value.startswith("$") or value.isupper():
+            ticker = value.lstrip("$").upper()
+            for common in COMMON_TICKERS:
+                if common.startswith(ticker) and common != ticker:
+                    return f"analyze {common}"
+        
+        # Standard suggestions
         for suggestion in SUGGESTIONS:
             if suggestion.lower().startswith(value_lower):
                 return suggestion
+        
+        # Try partial match in middle of suggestion
+        for suggestion in SUGGESTIONS:
+            if value_lower in suggestion.lower():
+                return suggestion
+        
         return None
 
 
@@ -173,16 +228,43 @@ Screen {
     padding: 1 0;
 }
 
-#thinking-area {
-    height: auto;
-    width: 100%;
-    content-align: center middle;
-    background: #0a0a0f;
-    display: none;
-    padding: 1;
+#status-bar {
+    height: 3;
+    background: #0d1117;
+    border-top: solid #1a1a2e;
+    padding: 0 2;
+    dock: bottom;
 }
 
-#thinking-area.visible {
+#status-content {
+    width: 100%;
+    height: 100%;
+    content-align: left middle;
+}
+
+#thinking-indicator {
+    width: auto;
+    height: 1;
+    content-align: center middle;
+    display: none;
+}
+
+#thinking-indicator.visible {
+    display: block;
+}
+
+#tool-calls-display {
+    width: 100%;
+    height: auto;
+    max-height: 6;
+    background: #0d1117;
+    border: solid #1a1a2e;
+    margin: 0 2;
+    padding: 0 1;
+    display: none;
+}
+
+#tool-calls-display.visible {
     display: block;
 }
 
@@ -219,6 +301,13 @@ Screen {
     border: solid #22c55e;
 }
 
+#ticker-highlight {
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    background: transparent;
+}
+
 Footer {
     background: #0d1117;
     height: 1;
@@ -238,26 +327,51 @@ Footer > .footer--key {
 Footer > .footer--description {
     color: #6b7280;
 }
+
+#help-panel {
+    width: 100%;
+    height: auto;
+    padding: 1;
+    background: #0d1117;
+    border: solid #3b82f6;
+    margin: 1 2;
+    display: none;
+}
+
+#help-panel.visible {
+    display: block;
+}
 """
 
 
-class ThinkingDisplay(Static):
-    """Animated sigma logo during thinking."""
+class ToolCallDisplay(Static):
+    """Animated display for tool calls."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.tool_calls: List[dict] = []
         self.frame = 0
         self.timer = None
     
-    def start(self):
-        """Start the animation."""
+    def add_tool_call(self, name: str, status: str = "running"):
+        """Add a tool call to the display."""
+        self.tool_calls.append({"name": name, "status": status, "frame": 0})
         self.add_class("visible")
-        self.frame = 0
-        self.update(Text.from_markup(THINKING_LOGO_FRAMES[0]))
-        self.timer = self.set_interval(0.3, self._animate)
+        self._render()
+        if not self.timer:
+            self.timer = self.set_interval(0.1, self._animate)
     
-    def stop(self):
-        """Stop the animation."""
+    def complete_tool_call(self, name: str):
+        """Mark a tool call as complete."""
+        for tc in self.tool_calls:
+            if tc["name"] == name and tc["status"] == "running":
+                tc["status"] = "complete"
+                break
+        self._render()
+    
+    def clear(self):
+        """Clear all tool calls."""
+        self.tool_calls = []
         if self.timer:
             self.timer.stop()
             self.timer = None
@@ -265,13 +379,31 @@ class ThinkingDisplay(Static):
         self.update("")
     
     def _animate(self):
-        """Cycle through animation frames."""
-        self.frame = (self.frame + 1) % len(THINKING_LOGO_FRAMES)
-        self.update(Text.from_markup(THINKING_LOGO_FRAMES[self.frame]))
+        """Animate the spinner."""
+        self.frame = (self.frame + 1) % len(TOOL_CALL_FRAMES)
+        for tc in self.tool_calls:
+            if tc["status"] == "running":
+                tc["frame"] = self.frame
+        self._render()
+    
+    def _render(self):
+        """Render the tool calls display."""
+        if not self.tool_calls:
+            return
+        
+        lines = []
+        for tc in self.tool_calls:
+            if tc["status"] == "running":
+                spinner = TOOL_CALL_FRAMES[tc["frame"]]
+                lines.append(f"  [cyan]{spinner}[/cyan] [bold]{tc['name']}[/bold] [dim]executing...[/dim]")
+            else:
+                lines.append(f"  [green]✓[/green] [bold]{tc['name']}[/bold] [green]complete[/green]")
+        
+        self.update(Text.from_markup("\n".join(lines)))
 
 
 class SigmaIndicator(Static):
-    """Pulsing sigma indicator."""
+    """Pulsing sigma indicator with minimal footprint."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -285,24 +417,46 @@ class SigmaIndicator(Static):
     def set_active(self, active: bool):
         self.active = active
         if active and not self.timer:
-            self.timer = self.set_interval(0.2, self._pulse)
+            self.timer = self.set_interval(0.15, self._pulse)
         elif not active and self.timer:
             self.timer.stop()
             self.timer = None
             self.update(Text.from_markup(f"[bold blue]{SIGMA}[/bold blue]"))
     
     def _pulse(self):
-        colors = ["#3b82f6", "#60a5fa", "#93c5fd", "#60a5fa"]
-        self.frame = (self.frame + 1) % len(colors)
-        self.update(Text.from_markup(f"[bold {colors[self.frame]}]{SIGMA}[/bold {colors[self.frame]}]"))
+        self.frame = (self.frame + 1) % len(SMALL_SIGMA_FRAMES)
+        self.update(Text.from_markup(SMALL_SIGMA_FRAMES[self.frame]))
+
+
+class TickerHighlight(Static):
+    """Display detected tickers in real-time."""
+    
+    def update_tickers(self, text: str):
+        """Update displayed tickers based on input."""
+        tickers = extract_tickers(text)
+        if tickers:
+            ticker_text = " ".join([f"[cyan]${t}[/cyan]" for t in tickers[:3]])
+            self.update(Text.from_markup(ticker_text))
+        else:
+            self.update("")
 
 
 class ChatLog(RichLog):
     """Chat log with rich formatting."""
     
     def write_user(self, message: str):
+        # Highlight any tickers in user message
+        highlighted = message
+        for ticker in extract_tickers(message):
+            highlighted = re.sub(
+                rf'\b{ticker}\b',
+                f'[cyan]{ticker}[/cyan]',
+                highlighted,
+                flags=re.IGNORECASE
+            )
+        
         self.write(Panel(
-            Text(message, style="white"),
+            Text.from_markup(highlighted) if '[cyan]' in highlighted else Text(message, style="white"),
             title="[bold blue]You[/bold blue]",
             border_style="blue",
             padding=(0, 1),
@@ -317,7 +471,8 @@ class ChatLog(RichLog):
         ))
     
     def write_tool(self, tool_name: str):
-        self.write(Text.from_markup(f"  [dim]{SIGMA} executing {tool_name}...[/dim]"))
+        # This is now handled by ToolCallDisplay
+        pass
     
     def write_error(self, message: str):
         self.write(Panel(Text(message, style="red"), title="[red]Error[/red]", border_style="red"))
@@ -338,6 +493,7 @@ class SigmaApp(App):
     BINDINGS = [
         Binding("ctrl+l", "clear", "Clear"),
         Binding("ctrl+m", "models", "Models"),
+        Binding("ctrl+h", "help_toggle", "Help"),
         Binding("ctrl+p", "palette", "palette", show=True),
         Binding("escape", "cancel", show=False),
     ]
@@ -350,6 +506,7 @@ class SigmaApp(App):
         self.is_processing = False
         self.history: List[str] = []
         self.history_idx = -1
+        self.show_help = False
     
     def compose(self) -> ComposeResult:
         yield Container(
@@ -357,15 +514,17 @@ class SigmaApp(App):
                 ChatLog(id="chat-log", highlight=True, markup=True),
                 id="chat-area",
             ),
-            Static(id="thinking-area"),
+            ToolCallDisplay(id="tool-calls-display"),
+            Static(id="help-panel"),
             Container(
                 Horizontal(
                     SigmaIndicator(id="sigma-indicator"),
                     Input(
-                        placeholder="Ask about any stock, market, or strategy...",
+                        placeholder="Ask about any stock, market, or strategy... (Tab to autocomplete)",
                         id="prompt-input",
                         suggester=SigmaSuggester(),
                     ),
+                    TickerHighlight(id="ticker-highlight"),
                     id="input-row",
                 ),
                 id="input-area",
@@ -380,7 +539,7 @@ class SigmaApp(App):
         
         provider = getattr(self.settings.default_provider, 'value', str(self.settings.default_provider))
         chat.write_system(f"{SIGMA} Provider: {provider} | Model: {self.settings.default_model}")
-        chat.write_system(f"{SIGMA} Type /help for commands or ask anything about markets")
+        chat.write_system(f"{SIGMA} Type /help for commands • Ctrl+H for quick help • Tab to autocomplete")
         chat.write_system("")
         
         self._init_llm()
@@ -393,6 +552,12 @@ class SigmaApp(App):
             chat = self.query_one("#chat-log", ChatLog)
             chat.write_error(f"LLM init failed: {e}")
             chat.write_system("Use /keys to configure API keys")
+    
+    @on(Input.Changed)
+    def on_input_change(self, event: Input.Changed):
+        """Update ticker highlight as user types."""
+        ticker_display = self.query_one("#ticker-highlight", TickerHighlight)
+        ticker_display.update_tickers(event.value)
     
     @on(Input.Submitted)
     def handle_input(self, event: Input.Submitted):
@@ -421,20 +586,7 @@ class SigmaApp(App):
         args = parts[1:] if len(parts) > 1 else []
         
         if command == "/help":
-            chat.write_system(f"""
-[bold]{SIGMA} Commands[/bold]
-  /help              Show commands
-  /clear             Clear chat
-  /keys              Configure API keys  
-  /models            Show models
-  /provider <name>   Switch provider
-  /model <name>      Switch model
-  /status            Show configuration
-  /backtest          Show strategies
-
-[bold]{SIGMA} Shortcuts[/bold]
-  Ctrl+L  Clear    Ctrl+M  Models    Ctrl+P  Palette
-""")
+            self._show_comprehensive_help(chat)
         elif command == "/clear":
             chat.clear()
             self.conversation = []
@@ -453,8 +605,86 @@ class SigmaApp(App):
             self._switch_model(args[0], chat)
         elif command.startswith("/setkey") and len(parts) >= 3:
             self._set_key(parts[1], parts[2], chat)
+        elif command == "/tickers":
+            self._show_popular_tickers(chat)
         else:
-            chat.write_error(f"Unknown command: {command}")
+            chat.write_error(f"Unknown command: {command}. Type /help for available commands.")
+    
+    def _show_comprehensive_help(self, chat: ChatLog):
+        """Show comprehensive help with examples."""
+        help_text = f"""
+[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]
+[bold]                    {SIGMA} SIGMA HELP CENTER                      [/bold]
+[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]
+
+[bold yellow]QUICK START[/bold yellow]
+  Just type naturally! Examples:
+  • "analyze AAPL"           - Full analysis of Apple
+  • "compare NVDA AMD INTC"  - Compare multiple stocks
+  • "is TSLA overvalued?"    - Get AI insights
+  • "market overview"        - See major indices
+
+[bold yellow]COMMANDS[/bold yellow]
+  [cyan]/help[/cyan]              This help screen
+  [cyan]/clear[/cyan]             Clear chat history
+  [cyan]/keys[/cyan]              Configure API keys
+  [cyan]/models[/cyan]            Show available models
+  [cyan]/status[/cyan]            Current configuration
+  [cyan]/backtest[/cyan]          Show backtest strategies
+  [cyan]/provider <name>[/cyan]   Switch AI provider
+  [cyan]/model <name>[/cyan]      Switch model
+  [cyan]/setkey <p> <k>[/cyan]    Set API key
+  [cyan]/tickers[/cyan]           Popular tickers list
+
+[bold yellow]ANALYSIS EXAMPLES[/bold yellow]
+  • "technical analysis of SPY"
+  • "fundamentals of MSFT"
+  • "insider trading for AAPL"
+  • "analyst recommendations for NVDA"
+  • "sector performance"
+
+[bold yellow]BACKTESTING[/bold yellow]
+  • "backtest SMA crossover on AAPL"
+  • "backtest RSI strategy on SPY"
+  • "backtest MACD on NVDA"
+  Strategies: sma_crossover, rsi, macd, bollinger, momentum, breakout
+
+[bold yellow]KEYBOARD SHORTCUTS[/bold yellow]
+  [bold]Tab[/bold]      Autocomplete suggestion
+  [bold]Ctrl+L[/bold]   Clear chat
+  [bold]Ctrl+M[/bold]   Show models
+  [bold]Ctrl+H[/bold]   Toggle quick help
+  [bold]Ctrl+P[/bold]   Command palette
+  [bold]Esc[/bold]      Cancel operation
+
+[bold yellow]TIPS[/bold yellow]
+  • Type [cyan]$AAPL[/cyan] or [cyan]AAPL[/cyan] - tickers auto-detected
+  • Use Tab for smart autocomplete
+  • Detected tickers shown next to input
+"""
+        chat.write(Panel(
+            Text.from_markup(help_text),
+            title=f"[bold cyan]{SIGMA} Help[/bold cyan]",
+            border_style="cyan",
+            padding=(0, 1),
+        ))
+    
+    def _show_popular_tickers(self, chat: ChatLog):
+        """Show popular tickers organized by category."""
+        tickers_text = """
+[bold]Tech Giants[/bold]: AAPL, MSFT, GOOGL, AMZN, META, NVDA
+[bold]Semiconductors[/bold]: NVDA, AMD, INTC, AVGO, QCOM, TSM
+[bold]EVs & Auto[/bold]: TSLA, RIVN, LCID, F, GM
+[bold]Finance[/bold]: JPM, BAC, GS, MS, V, MA
+[bold]Healthcare[/bold]: JNJ, PFE, UNH, MRK, ABBV
+[bold]ETFs[/bold]: SPY, QQQ, IWM, DIA, VTI, VOO
+[bold]Sector ETFs[/bold]: XLK, XLF, XLE, XLV, XLI
+"""
+        chat.write(Panel(
+            Text.from_markup(tickers_text),
+            title=f"[cyan]{SIGMA} Popular Tickers[/cyan]",
+            border_style="dim",
+        ))
     
     def _show_keys(self, chat: ChatLog):
         chat.write_system(f"""
@@ -541,19 +771,12 @@ Example: /setkey google AIzaSy...
             return
         
         self.is_processing = True
-        thinking = self.query_one("#thinking-area", Static)
         indicator = self.query_one("#sigma-indicator", SigmaIndicator)
+        tool_display = self.query_one("#tool-calls-display", ToolCallDisplay)
+        ticker_highlight = self.query_one("#ticker-highlight", TickerHighlight)
         
-        # Start animated thinking display
-        thinking.add_class("visible")
-        frame = [0]
-        
-        def animate():
-            thinking.update(Text.from_markup(THINKING_LOGO_FRAMES[frame[0]]))
-            frame[0] = (frame[0] + 1) % len(THINKING_LOGO_FRAMES)
-        
-        animate()
-        timer = self.set_interval(0.3, animate)
+        # Clear ticker highlight and start sigma animation
+        ticker_highlight.update("")
         indicator.set_active(True)
         
         try:
@@ -564,12 +787,19 @@ Example: /setkey google AIzaSy...
             all_tools = TOOLS + [BACKTEST_TOOL]
             
             async def on_tool(name: str, args: dict):
-                chat.write_tool(name)
+                tool_display.add_tool_call(name)
                 if name == "run_backtest":
-                    return run_backtest(**args)
-                return execute_tool(name, args)
+                    result = run_backtest(**args)
+                else:
+                    result = execute_tool(name, args)
+                tool_display.complete_tool_call(name)
+                return result
             
             response = await self.llm.generate(messages, tools=all_tools, on_tool_call=on_tool)
+            
+            # Clear tool display after getting response
+            await asyncio.sleep(0.5)  # Brief pause to show completion
+            tool_display.clear()
             
             if response:
                 chat.write_assistant(response)
@@ -580,11 +810,9 @@ Example: /setkey google AIzaSy...
             else:
                 chat.write_error("No response")
         except Exception as e:
+            tool_display.clear()
             chat.write_error(str(e))
         finally:
-            timer.stop()
-            thinking.remove_class("visible")
-            thinking.update("")
             indicator.set_active(False)
             self.is_processing = False
             self.query_one("#prompt-input", Input).focus()
@@ -598,9 +826,25 @@ Example: /setkey google AIzaSy...
     def action_models(self):
         self._show_models(self.query_one("#chat-log", ChatLog))
     
+    def action_help_toggle(self):
+        """Toggle quick help panel."""
+        help_panel = self.query_one("#help-panel", Static)
+        if self.show_help:
+            help_panel.remove_class("visible")
+            help_panel.update("")
+        else:
+            help_panel.add_class("visible")
+            help_panel.update(Text.from_markup(
+                "[bold]Quick Commands:[/bold] /help /clear /keys /models /status /backtest  "
+                "[bold]Shortcuts:[/bold] Tab=autocomplete Ctrl+L=clear Ctrl+M=models"
+            ))
+        self.show_help = not self.show_help
+    
     def action_cancel(self):
         if self.is_processing:
             self.is_processing = False
+            tool_display = self.query_one("#tool-calls-display", ToolCallDisplay)
+            tool_display.clear()
 
 
 def launch():
