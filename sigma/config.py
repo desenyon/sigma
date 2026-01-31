@@ -1,15 +1,17 @@
-"""Configuration management for Sigma v3.2.0."""
+"""Configuration management for Sigma v3.3.0."""
 
 import os
+import shutil
+import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 
 
 class LLMProvider(str, Enum):
@@ -35,6 +37,167 @@ AVAILABLE_MODELS = {
 # Config directory
 CONFIG_DIR = Path.home() / ".sigma"
 CONFIG_FILE = CONFIG_DIR / "config.env"
+FIRST_RUN_MARKER = CONFIG_DIR / ".first_run_complete"
+
+
+def is_first_run() -> bool:
+    """Check if this is the first run of the application."""
+    return not FIRST_RUN_MARKER.exists()
+
+
+def mark_first_run_complete() -> None:
+    """Mark that the first run setup has been completed."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    FIRST_RUN_MARKER.touch()
+
+
+def detect_lean_installation() -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Auto-detect LEAN/QuantConnect installation.
+    Returns: (is_installed, cli_path, lean_directory)
+    """
+    lean_cli_path = None
+    lean_directory = None
+    
+    # Check if lean CLI is available in PATH
+    lean_cli = shutil.which("lean")
+    if lean_cli:
+        lean_cli_path = lean_cli
+    
+    # Check common installation paths for LEAN directory
+    common_paths = [
+        Path.home() / "Lean",
+        Path.home() / ".lean",
+        Path.home() / "QuantConnect" / "Lean",
+        Path("/opt/lean"),
+        Path.home() / "Projects" / "Lean",
+        Path.home() / ".local" / "share" / "lean",
+    ]
+    
+    for path in common_paths:
+        if path.exists():
+            # Check for LEAN directory structure
+            if (path / "Launcher").exists() or (path / "Algorithm.Python").exists() or (path / "lean.json").exists():
+                lean_directory = str(path)
+                break
+    
+    # Check if lean is installed via pip (check both pip and pip3)
+    if not lean_cli_path:
+        for pip_cmd in ["pip3", "pip"]:
+            try:
+                result = subprocess.run(
+                    [pip_cmd, "show", "lean"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    # Parse location from pip show output
+                    for line in result.stdout.split("\n"):
+                        if line.startswith("Location:"):
+                            # lean is installed via pip
+                            lean_cli_path = "lean"
+                            break
+                    if lean_cli_path:
+                        break
+            except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+                continue
+    
+    # Also check if lean command works directly
+    if not lean_cli_path:
+        try:
+            result = subprocess.run(
+                ["lean", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                lean_cli_path = "lean"
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+            pass
+    
+    is_installed = lean_cli_path is not None or lean_directory is not None
+    return is_installed, lean_cli_path, lean_directory
+
+
+async def install_lean_cli() -> Tuple[bool, str]:
+    """
+    Install LEAN CLI via pip.
+    Returns: (success, message)
+    """
+    import asyncio
+    
+    try:
+        # Try pip3 first, then pip
+        for pip_cmd in ["pip3", "pip"]:
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    pip_cmd, "install", "lean",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+                
+                if process.returncode == 0:
+                    return True, "LEAN CLI installed successfully!"
+            except (FileNotFoundError, asyncio.TimeoutError):
+                continue
+        
+        return False, "Failed to install LEAN CLI. Please install manually: pip install lean"
+    except Exception as e:
+        return False, f"Installation error: {str(e)}"
+
+
+def install_lean_cli_sync() -> Tuple[bool, str]:
+    """
+    Install LEAN CLI via pip (synchronous version).
+    Returns: (success, message)
+    """
+    try:
+        # Try pip3 first, then pip
+        for pip_cmd in ["pip3", "pip"]:
+            try:
+                result = subprocess.run(
+                    [pip_cmd, "install", "lean"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                
+                if result.returncode == 0:
+                    return True, "LEAN CLI installed successfully!"
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+        
+        return False, "Failed to install LEAN CLI. Please install manually: pip install lean"
+    except Exception as e:
+        return False, f"Installation error: {str(e)}"
+
+
+def detect_ollama() -> Tuple[bool, Optional[str]]:
+    """
+    Auto-detect Ollama installation and available models.
+    Returns: (is_running, host_url)
+    """
+    import urllib.request
+    import urllib.error
+    
+    hosts_to_check = [
+        "http://localhost:11434",
+        "http://127.0.0.1:11434",
+    ]
+    
+    for host in hosts_to_check:
+        try:
+            req = urllib.request.Request(f"{host}/api/tags", method="GET")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                if resp.status == 200:
+                    return True, host
+        except (urllib.error.URLError, OSError):
+            continue
+    
+    return False, None
 
 
 class Settings(BaseSettings):
@@ -61,6 +224,11 @@ class Settings(BaseSettings):
     
     # Ollama settings
     ollama_host: str = "http://localhost:11434"
+    
+    # LEAN settings
+    lean_cli_path: Optional[str] = Field(default=None, alias="LEAN_CLI_PATH")
+    lean_directory: Optional[str] = Field(default=None, alias="LEAN_DIRECTORY")
+    lean_enabled: bool = Field(default=False, alias="LEAN_ENABLED")
     
     # Data API keys
     alpha_vantage_api_key: str = "6ER128DD3NQUPTVC"  # Built-in free key
@@ -183,6 +351,9 @@ def save_setting(key: str, value: str) -> None:
         "output_dir": "OUTPUT_DIR",
         "cache_enabled": "CACHE_ENABLED",
         "lean_cli_path": "LEAN_CLI_PATH",
+        "lean_directory": "LEAN_DIRECTORY",
+        "lean_enabled": "LEAN_ENABLED",
+        "ollama_host": "OLLAMA_HOST",
     }
     
     config_key = setting_map.get(key, key.upper())
