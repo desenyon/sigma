@@ -1,4 +1,4 @@
-"""Sigma v3.3.0 - Finance Research Agent."""
+"""Sigma v3.3.1 - Finance Research Agent."""
 
 import asyncio
 import os
@@ -23,7 +23,7 @@ from .tools import TOOLS, execute_tool
 from .backtest import run_backtest, get_available_strategies, BACKTEST_TOOL
 
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 SIGMA = "σ"
 
 # Common stock tickers for recognition
@@ -60,7 +60,7 @@ WELCOME_BANNER = """
 [bold blue]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold blue]
 [bold blue]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
 
-[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.3.0 | Native macOS[/dim]
+[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.3.1 | Native macOS[/dim]
 """
 
 SYSTEM_PROMPT = """You are Sigma, a Finance Research Agent. You provide comprehensive market analysis, trading strategies, and investment insights.

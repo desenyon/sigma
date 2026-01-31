@@ -122,10 +122,17 @@ def get_financial_statements(symbol: str, statement: str = "income") -> dict:
                 else:
                     data[str(idx)] = f"${val:,.0f}"
         
+        # Get period from column
+        col = df.columns[0]
+        if hasattr(col, 'date'):
+            period_str = str(col.date())  # type: ignore[union-attr]
+        else:
+            period_str = str(col)
+        
         return {
             "symbol": symbol.upper(),
             "statement_type": statement,
-            "period": str(df.columns[0].date()) if hasattr(df.columns[0], 'date') else str(df.columns[0]),
+            "period": period_str,
             "data": data
         }
     except Exception as e:
@@ -139,11 +146,11 @@ def get_analyst_recommendations(symbol: str) -> dict:
         
         # Get recommendations
         recs = ticker.recommendations
-        if recs is not None and not recs.empty:
+        rec_summary = {}
+        if isinstance(recs, pd.DataFrame) and not recs.empty:
             recent = recs.tail(10)
-            rec_summary = recent["To Grade"].value_counts().to_dict() if "To Grade" in recent.columns else {}
-        else:
-            rec_summary = {}
+            if "To Grade" in recent.columns:
+                rec_summary = recent["To Grade"].value_counts().to_dict()
         
         # Get info for targets
         info = ticker.info
@@ -432,6 +439,325 @@ def get_sector_performance() -> dict:
 
 
 # ============================================================================
+# ALPHA VANTAGE TOOLS (Economic Data, Intraday, News)
+# ============================================================================
+
+def _get_alpha_vantage_key() -> Optional[str]:
+    """Get Alpha Vantage API key from config."""
+    try:
+        from .config import get_settings
+        return get_settings().alpha_vantage_api_key
+    except:
+        return None
+
+
+def get_economic_indicators(indicator: str = "GDP") -> dict:
+    """Get economic indicators from Alpha Vantage (GDP, inflation, unemployment, etc.)."""
+    api_key = _get_alpha_vantage_key()
+    if not api_key:
+        return {"error": "Alpha Vantage API key not configured. Set ALPHA_VANTAGE_API_KEY in ~/.sigma/config.env"}
+    
+    import requests
+    
+    indicator_map = {
+        "GDP": "REAL_GDP",
+        "INFLATION": "INFLATION",
+        "UNEMPLOYMENT": "UNEMPLOYMENT",
+        "INTEREST_RATE": "FEDERAL_FUNDS_RATE",
+        "CPI": "CPI",
+        "RETAIL_SALES": "RETAIL_SALES",
+        "NONFARM_PAYROLL": "NONFARM_PAYROLL",
+    }
+    
+    av_indicator = indicator_map.get(indicator.upper(), indicator.upper())
+    
+    try:
+        url = f"https://www.alphavantage.co/query?function={av_indicator}&apikey={api_key}"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        if "Error Message" in data:
+            return {"error": data["Error Message"]}
+        
+        if "data" in data:
+            # Return most recent data points
+            recent = data["data"][:12]  # Last 12 periods
+            return {
+                "indicator": indicator.upper(),
+                "name": data.get("name", indicator),
+                "unit": data.get("unit", ""),
+                "data": [{"date": d["date"], "value": d["value"]} for d in recent]
+            }
+        
+        return {"error": "No data returned", "raw": data}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_intraday_data(symbol: str, interval: str = "5min") -> dict:
+    """Get intraday price data from Alpha Vantage."""
+    api_key = _get_alpha_vantage_key()
+    if not api_key:
+        return {"error": "Alpha Vantage API key not configured. Set ALPHA_VANTAGE_API_KEY in ~/.sigma/config.env"}
+    
+    import requests
+    
+    valid_intervals = ["1min", "5min", "15min", "30min", "60min"]
+    if interval not in valid_intervals:
+        return {"error": f"Invalid interval. Use: {valid_intervals}"}
+    
+    try:
+        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval={interval}&apikey={api_key}"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        if "Error Message" in data:
+            return {"error": data["Error Message"]}
+        
+        time_series_key = f"Time Series ({interval})"
+        if time_series_key not in data:
+            return {"error": "No data returned. Check symbol or API limits.", "raw": data}
+        
+        # Get last 20 candles
+        series = data[time_series_key]
+        candles = []
+        for timestamp, values in list(series.items())[:20]:
+            candles.append({
+                "timestamp": timestamp,
+                "open": float(values["1. open"]),
+                "high": float(values["2. high"]),
+                "low": float(values["3. low"]),
+                "close": float(values["4. close"]),
+                "volume": int(values["5. volume"])
+            })
+        
+        return {
+            "symbol": symbol.upper(),
+            "interval": interval,
+            "candles": candles
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_market_news(tickers: str = "", topics: str = "") -> dict:
+    """Get market news and sentiment from Alpha Vantage."""
+    api_key = _get_alpha_vantage_key()
+    if not api_key:
+        return {"error": "Alpha Vantage API key not configured. Set ALPHA_VANTAGE_API_KEY in ~/.sigma/config.env"}
+    
+    import requests
+    
+    try:
+        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey={api_key}"
+        if tickers:
+            url += f"&tickers={tickers}"
+        if topics:
+            url += f"&topics={topics}"
+        
+        response = requests.get(url, timeout=15)
+        data = response.json()
+        
+        if "Error Message" in data:
+            return {"error": data["Error Message"]}
+        
+        feed = data.get("feed", [])[:10]  # Get top 10 news items
+        
+        articles = []
+        for item in feed:
+            articles.append({
+                "title": item.get("title", ""),
+                "source": item.get("source", ""),
+                "time": item.get("time_published", ""),
+                "summary": item.get("summary", "")[:300] + "..." if item.get("summary") else "",
+                "sentiment": item.get("overall_sentiment_label", ""),
+                "sentiment_score": item.get("overall_sentiment_score", 0),
+                "tickers": [t["ticker"] for t in item.get("ticker_sentiment", [])[:3]]
+            })
+        
+        return {
+            "articles": articles,
+            "query": {"tickers": tickers, "topics": topics}
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================================
+# EXA SEARCH TOOLS (Financial News, SEC Filings)
+# ============================================================================
+
+def _get_exa_key() -> Optional[str]:
+    """Get Exa API key from config."""
+    try:
+        from .config import get_settings
+        return get_settings().exa_api_key
+    except:
+        return None
+
+
+def search_financial_news(query: str, num_results: int = 5) -> dict:
+    """Search for financial news using Exa."""
+    api_key = _get_exa_key()
+    if not api_key:
+        return {"error": "Exa API key not configured. Set EXA_API_KEY in ~/.sigma/config.env"}
+    
+    import requests
+    
+    try:
+        headers = {
+            "x-api-key": api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "query": query,
+            "num_results": num_results,
+            "use_autoprompt": True,
+            "type": "neural",
+            "include_domains": [
+                "reuters.com", "bloomberg.com", "wsj.com", "cnbc.com",
+                "marketwatch.com", "ft.com", "seekingalpha.com", "yahoo.com/finance"
+            ]
+        }
+        
+        response = requests.post(
+            "https://api.exa.ai/search",
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
+        
+        if response.status_code != 200:
+            return {"error": f"Exa API error: {response.status_code}", "details": response.text}
+        
+        data = response.json()
+        
+        results = []
+        for item in data.get("results", []):
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "published": item.get("publishedDate", ""),
+                "score": item.get("score", 0)
+            })
+        
+        return {
+            "query": query,
+            "results": results
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def search_sec_filings(company: str, filing_type: str = "10-K", num_results: int = 3) -> dict:
+    """Search for SEC filings using Exa."""
+    api_key = _get_exa_key()
+    if not api_key:
+        return {"error": "Exa API key not configured. Set EXA_API_KEY in ~/.sigma/config.env"}
+    
+    import requests
+    
+    try:
+        headers = {
+            "x-api-key": api_key,
+            "Content-Type": "application/json"
+        }
+        
+        query = f"{company} {filing_type} SEC filing site:sec.gov"
+        
+        payload = {
+            "query": query,
+            "num_results": num_results,
+            "use_autoprompt": True,
+            "type": "neural",
+            "include_domains": ["sec.gov"]
+        }
+        
+        response = requests.post(
+            "https://api.exa.ai/search",
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
+        
+        if response.status_code != 200:
+            return {"error": f"Exa API error: {response.status_code}"}
+        
+        data = response.json()
+        
+        results = []
+        for item in data.get("results", []):
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "published": item.get("publishedDate", "")
+            })
+        
+        return {
+            "company": company,
+            "filing_type": filing_type,
+            "results": results
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def search_earnings_transcripts(company: str, num_results: int = 3) -> dict:
+    """Search for earnings call transcripts using Exa."""
+    api_key = _get_exa_key()
+    if not api_key:
+        return {"error": "Exa API key not configured. Set EXA_API_KEY in ~/.sigma/config.env"}
+    
+    import requests
+    
+    try:
+        headers = {
+            "x-api-key": api_key,
+            "Content-Type": "application/json"
+        }
+        
+        query = f"{company} earnings call transcript Q4 2025"
+        
+        payload = {
+            "query": query,
+            "num_results": num_results,
+            "use_autoprompt": True,
+            "type": "neural",
+            "include_domains": [
+                "seekingalpha.com", "fool.com", "reuters.com"
+            ]
+        }
+        
+        response = requests.post(
+            "https://api.exa.ai/search",
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
+        
+        if response.status_code != 200:
+            return {"error": f"Exa API error: {response.status_code}"}
+        
+        data = response.json()
+        
+        results = []
+        for item in data.get("results", []):
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "published": item.get("publishedDate", "")
+            })
+        
+        return {
+            "company": company,
+            "results": results
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================================
 # TOOL DEFINITIONS FOR LLM
 # ============================================================================
 
@@ -590,6 +916,98 @@ TOOLS = [
             }
         }
     },
+    # Alpha Vantage tools
+    {
+        "type": "function",
+        "function": {
+            "name": "get_economic_indicators",
+            "description": "Get economic indicators like GDP, inflation, unemployment, interest rates, CPI",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "indicator": {"type": "string", "enum": ["GDP", "INFLATION", "UNEMPLOYMENT", "INTEREST_RATE", "CPI", "RETAIL_SALES", "NONFARM_PAYROLL"], "description": "Economic indicator to retrieve"}
+                },
+                "required": ["indicator"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_intraday_data",
+            "description": "Get intraday price data with 1min, 5min, 15min, 30min, or 60min candles",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"},
+                    "interval": {"type": "string", "enum": ["1min", "5min", "15min", "30min", "60min"], "description": "Candle interval", "default": "5min"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_news",
+            "description": "Get market news and sentiment for specific tickers or topics",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tickers": {"type": "string", "description": "Comma-separated ticker symbols (e.g., AAPL,MSFT)"},
+                    "topics": {"type": "string", "description": "Topics like: earnings, ipo, mergers, technology, finance"}
+                },
+                "required": []
+            }
+        }
+    },
+    # Exa Search tools
+    {
+        "type": "function",
+        "function": {
+            "name": "search_financial_news",
+            "description": "Search for financial news articles from major sources (Bloomberg, Reuters, WSJ, etc.)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query for financial news"},
+                    "num_results": {"type": "integer", "description": "Number of results (1-10)", "default": 5}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_sec_filings",
+            "description": "Search for SEC filings (10-K, 10-Q, 8-K, etc.) for a company",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company": {"type": "string", "description": "Company name or ticker"},
+                    "filing_type": {"type": "string", "enum": ["10-K", "10-Q", "8-K", "S-1", "DEF 14A"], "description": "Type of SEC filing", "default": "10-K"},
+                    "num_results": {"type": "integer", "description": "Number of results", "default": 3}
+                },
+                "required": ["company"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_earnings_transcripts",
+            "description": "Search for earnings call transcripts",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company": {"type": "string", "description": "Company name or ticker"},
+                    "num_results": {"type": "integer", "description": "Number of results", "default": 3}
+                },
+                "required": ["company"]
+            }
+        }
+    },
 ]
 
 
@@ -606,6 +1024,14 @@ TOOL_FUNCTIONS = {
     "compare_stocks": compare_stocks,
     "get_market_overview": get_market_overview,
     "get_sector_performance": get_sector_performance,
+    # Alpha Vantage
+    "get_economic_indicators": get_economic_indicators,
+    "get_intraday_data": get_intraday_data,
+    "get_market_news": get_market_news,
+    # Exa Search
+    "search_financial_news": search_financial_news,
+    "search_sec_filings": search_sec_filings,
+    "search_earnings_transcripts": search_earnings_transcripts,
 }
 
 

@@ -1,4 +1,4 @@
-"""Configuration management for Sigma v3.3.0."""
+"""Configuration management for Sigma v3.3.1."""
 
 import os
 import shutil
@@ -11,7 +11,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 
 
 class LLMProvider(str, Enum):
@@ -231,8 +231,8 @@ class Settings(BaseSettings):
     lean_enabled: bool = Field(default=False, alias="LEAN_ENABLED")
     
     # Data API keys
-    alpha_vantage_api_key: str = "6ER128DD3NQUPTVC"  # Built-in free key
-    exa_api_key: Optional[str] = None
+    alpha_vantage_api_key: str = Field(default="6ER128DD3NQUPTVC", alias="ALPHA_VANTAGE_API_KEY")
+    exa_api_key: Optional[str] = Field(default=None, alias="EXA_API_KEY")
     
     class Config:
         env_file = str(CONFIG_FILE)

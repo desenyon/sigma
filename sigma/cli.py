@@ -1,8 +1,9 @@
-"""CLI entry point for Sigma v3.3.0."""
+"""CLI entry point for Sigma v3.3.1."""
 
 import argparse
 import json
 import sys
+import time
 from typing import Optional
 
 from rich.console import Console
@@ -16,7 +17,7 @@ from .config import (
 )
 
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 
 console = Console()
 
@@ -31,7 +32,7 @@ def show_banner():
 [bold white]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold white]
 [bold white]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold white]
 
-[dim]v3.3.0[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
+[dim]v3.3.1[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
 """
     console.print(banner)
 
@@ -40,7 +41,7 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="sigma",
-        description="Sigma v3.3.0 - Finance Research Agent",
+        description="Sigma v3.3.1 - Finance Research Agent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

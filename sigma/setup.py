@@ -1,4 +1,4 @@
-"""Sigma v3.3.0 - Setup Wizard."""
+"""Sigma v3.3.1 - Setup Wizard."""
 
 import os
 import sys
@@ -25,7 +25,7 @@ from .config import (
 )
 
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 SIGMA = "σ"
 console = Console()
 
@@ -38,7 +38,7 @@ BANNER = """
 [bold blue]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold blue]
 [bold blue]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
 
-[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.3.0[/dim]
+[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.3.1[/dim]
 """
 
 
@@ -342,6 +342,20 @@ class SetupWizard:
                     console.print(f"[cyan]{SIGMA}[/cyan] LEAN configured: {lean_path}")
             else:
                 console.print("[dim]Skipping LEAN setup. You can configure it later.[/dim]")
+        
+        console.print()
+        
+        # Exa API Key (Optional)
+        console.print("[bold]Exa Search (Optional)[/bold]")
+        console.print("[dim]Enables financial news search, SEC filings, and earnings transcripts.[/dim]")
+        console.print()
+        
+        if Confirm.ask("Configure Exa? (financial news search, SEC filings)", default=False):
+            console.print("[dim]Get key: https://exa.ai[/dim]")
+            exa_key = Prompt.ask("Exa API key", password=True, default="")
+            if exa_key:
+                save_setting("exa_api_key", exa_key)
+                console.print(f"[cyan]{SIGMA}[/cyan] Exa configured")
     
     def _show_summary(self):
         """Show summary."""

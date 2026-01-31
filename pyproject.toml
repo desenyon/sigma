@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sigma-terminal"
-version = "3.3.0"
+version = "3.3.1"
 description = "Sigma - Finance Research Agent"
 readme = "README.md"
 license = {text = "Proprietary"}
