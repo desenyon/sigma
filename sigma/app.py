@@ -1,4 +1,4 @@
-"""Sigma v3.3.1 - Finance Research Agent."""
+"""Sigma v3.4.0 - Finance Research Agent."""
 
 import asyncio
 import os
@@ -17,13 +17,13 @@ from textual.containers import Container, Horizontal, Vertical, ScrollableContai
 from textual.widgets import Footer, Input, RichLog, Static
 from textual.suggester import Suggester
 
-from .config import LLMProvider, get_settings, save_api_key, AVAILABLE_MODELS
+from .config import LLMProvider, get_settings, save_api_key, AVAILABLE_MODELS, SigmaError, ErrorCode
 from .llm import get_llm
 from .tools import TOOLS, execute_tool
 from .backtest import run_backtest, get_available_strategies, BACKTEST_TOOL
 
 
-__version__ = "3.3.1"
+__version__ = "3.4.0"
 SIGMA = "σ"
 
 # Common stock tickers for recognition
@@ -38,52 +38,107 @@ COMMON_TICKERS = {
     "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VXX", "ARKK", "XLF", "XLK", "XLE",
 }
 
-# Small sigma animation frames (minimal footprint)
-SMALL_SIGMA_FRAMES = [
-    "[bold blue]σ[/bold blue]",
-    "[bold cyan]σ[/bold cyan]",
-    "[bold white]σ[/bold white]",
-    "[bold #60a5fa]σ[/bold #60a5fa]",
+# Sigma animation frames - color cycling for thinking/processing state
+SIGMA_FRAMES = [
+    "[bold #3b82f6]s[/bold #3b82f6]",
+    "[bold #60a5fa]si[/bold #60a5fa]",
+    "[bold #93c5fd]sig[/bold #93c5fd]",
+    "[bold #bfdbfe]sigm[/bold #bfdbfe]",
+    "[bold white]sigma[/bold white]",
+    "[bold #bfdbfe]sigm[/bold #bfdbfe]",
+    "[bold #93c5fd]sig[/bold #93c5fd]",
+    "[bold #60a5fa]si[/bold #60a5fa]",
+    "[bold #3b82f6]s[/bold #3b82f6]",
+    "[bold cyan].[/bold cyan]",
 ]
 
-# Tool call animation frames
-TOOL_CALL_FRAMES = [
-    "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"
+# Sigma pulse animation (color breathing)
+SIGMA_PULSE_FRAMES = [
+    "[bold #1e40af]o[/bold #1e40af]",
+    "[bold #2563eb]o[/bold #2563eb]",
+    "[bold #3b82f6]o[/bold #3b82f6]",
+    "[bold #60a5fa]o[/bold #60a5fa]",
+    "[bold #93c5fd]o[/bold #93c5fd]",
+    "[bold #bfdbfe]o[/bold #bfdbfe]",
+    "[bold #93c5fd]o[/bold #93c5fd]",
+    "[bold #60a5fa]o[/bold #60a5fa]",
+    "[bold #3b82f6]o[/bold #3b82f6]",
+    "[bold #2563eb]o[/bold #2563eb]",
+]
+
+# Tool call spinner frames - ASCII based
+TOOL_SPINNER_FRAMES = [
+    "|", "/", "-", "\\"
 ]
 
 # Welcome banner - clean design
 WELCOME_BANNER = """
-[bold blue]███████╗██╗ ██████╗ ███╗   ███╗ █████╗ [/bold blue]
-[bold blue]██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗[/bold blue]
-[bold blue]███████╗██║██║  ███╗██╔████╔██║███████║[/bold blue]
-[bold blue]╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║[/bold blue]
-[bold blue]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold blue]
-[bold blue]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
+[bold #3b82f6]███████╗██╗ ██████╗ ███╗   ███╗ █████╗ [/bold #3b82f6]
+[bold #60a5fa]██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗[/bold #60a5fa]
+[bold #93c5fd]███████╗██║██║  ███╗██╔████╔██║███████║[/bold #93c5fd]
+[bold #60a5fa]╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║[/bold #60a5fa]
+[bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
+[bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
 
-[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.3.1 | Native macOS[/dim]
+[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.4.0[/dim]
 """
 
-SYSTEM_PROMPT = """You are Sigma, a Finance Research Agent. You provide comprehensive market analysis, trading strategies, and investment insights.
+SYSTEM_PROMPT = """You are Sigma (σ), an elite AI-powered Finance Research Agent. You combine the analytical rigor of a quantitative analyst, the market intuition of a seasoned portfolio manager, and the communication clarity of a top financial advisor.
 
 CORE CAPABILITIES:
-- Real-time market data analysis (quotes, charts, technicals)
-- Fundamental analysis (financials, ratios, earnings)
-- Technical analysis (RSI, MACD, Bollinger Bands, moving averages)
+- Real-time market data analysis (quotes, charts, technicals) via yfinance and Polygon.io
+- Fundamental analysis (financials, ratios, earnings, valuations)
+- Technical analysis (RSI, MACD, Bollinger Bands, moving averages, support/resistance)
 - Backtesting strategies (SMA crossover, RSI, MACD, Bollinger, momentum, breakout)
 - Portfolio analysis and optimization
-- Sector and market overview
-- Insider and fund activity tracking
+- Sector and market overview with economic indicators
+- Insider trading and institutional activity tracking
+- Financial news search and SEC filings analysis
 
-RESPONSE STYLE:
-- Be concise and data-driven
-- Lead with key insights, then supporting data
-- Use tables for comparative data when appropriate
-- Always cite specific numbers and metrics
-- Provide actionable recommendations when asked
-- Format currency and percentages properly
-- Use STRONG BUY, BUY, HOLD, SELL, STRONG SELL ratings when appropriate
+RESPONSE PHILOSOPHY:
+1. BE PROACTIVE: Anticipate follow-up questions and address them
+2. BE THOROUGH: When analyzing, cover fundamentals + technicals + sentiment
+3. BE ACTIONABLE: Always end with clear recommendations or next steps
+4. BE DATA-DRIVEN: Cite specific numbers, dates, and percentages
+5. BE HONEST: Acknowledge uncertainty and risks
 
-When users ask about stocks, always gather current data using your tools before responding."""
+RESPONSE FORMAT:
+- Start with a 1-2 sentence executive summary (the key takeaway)
+- Use structured sections with clear headers (## format)
+- Present comparative data in markdown tables
+- Highlight key metrics: **bold** for critical numbers
+- Use bullet points for easy scanning
+- End with "**Bottom Line:**" or "**Recommendation:**"
+
+RATING SYSTEM (when asked for recommendations):
+- STRONG BUY [A+]: Exceptional opportunity, high conviction
+- BUY [A]: Favorable outlook, solid fundamentals
+- HOLD [B]: Fair value, wait for better entry
+- SELL [C]: Concerns outweigh positives
+- STRONG SELL [D]: Significant risks, avoid
+
+DATA GATHERING RULES:
+- ALWAYS use tools to fetch current data before answering stock questions
+- Use multiple tools for comprehensive analysis (quote + technicals + fundamentals)
+- Cross-reference data points for accuracy
+- If a tool fails, try alternative approaches or acknowledge the limitation
+
+PROACTIVE INSIGHTS:
+When analyzing any stock, proactively mention:
+- Recent earnings surprises or upcoming earnings dates
+- Major analyst rating changes
+- Unusual volume or price movements
+- Relevant sector trends
+- Key support/resistance levels
+- Comparison to peers when relevant
+
+FORBIDDEN:
+- Never fabricate data or prices
+- Never provide data without fetching it first
+- Never give buy/sell advice without disclosure of risks
+- Never claim certainty about future performance
+
+Remember: Users trust you for professional-grade financial research. Exceed their expectations with every response."""
 
 # Enhanced autocomplete suggestions with more variety
 SUGGESTIONS = [
@@ -142,6 +197,28 @@ SUGGESTIONS = [
     "/backtest",
 ]
 
+# Extended action verbs for smart completion
+ACTION_VERBS = [
+    "analyze", "compare", "show", "get", "what is", "tell me about",
+    "technical analysis", "fundamentals", "price", "quote", "chart",
+    "backtest", "insider trading", "institutional", "analyst", "earnings",
+    "financials", "valuation", "news", "sector", "market", "portfolio"
+]
+
+# Ticker categories for smart suggestions
+TICKER_CATEGORIES = {
+    "tech": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "AMD", "INTC", "CRM", "ADBE"],
+    "finance": ["JPM", "BAC", "GS", "MS", "V", "MA", "BRK.B", "C", "WFC", "AXP"],
+    "healthcare": ["JNJ", "UNH", "PFE", "MRK", "ABBV", "LLY", "TMO", "ABT", "BMY", "GILD"],
+    "consumer": ["AMZN", "TSLA", "HD", "NKE", "MCD", "SBUX", "COST", "WMT", "TGT", "LOW"],
+    "energy": ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "HAL"],
+    "etf": ["SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VXX", "ARKK", "XLF", "XLK"],
+    "crypto": ["COIN", "MSTR", "RIOT", "MARA", "HUT"],
+    "ev": ["TSLA", "RIVN", "LCID", "NIO", "XPEV", "LI"],
+    "ai": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "PLTR", "AI", "PATH", "SNOW"],
+    "semiconductor": ["NVDA", "AMD", "INTC", "AVGO", "QCOM", "TXN", "MU", "AMAT", "LRCX", "ASML"],
+}
+
 
 def extract_tickers(text: str) -> List[str]:
     """Extract stock tickers from text."""
@@ -167,34 +244,174 @@ def extract_tickers(text: str) -> List[str]:
 
 
 class SigmaSuggester(Suggester):
-    """Enhanced autocomplete suggester with ticker recognition."""
+    """Smart autocomplete with fuzzy matching and context awareness."""
     
     def __init__(self):
-        super().__init__(use_cache=True, case_sensitive=False)
+        super().__init__(use_cache=False, case_sensitive=False)
+        self._build_suggestion_index()
+    
+    def _build_suggestion_index(self):
+        """Build an index of all possible suggestions for fast lookup."""
+        self.all_suggestions = []
+        
+        # Add static suggestions
+        self.all_suggestions.extend(SUGGESTIONS)
+        
+        # Generate dynamic suggestions for all tickers
+        for ticker in COMMON_TICKERS:
+            self.all_suggestions.extend([
+                f"analyze {ticker}",
+                f"technical analysis of {ticker}",
+                f"fundamentals of {ticker}",
+                f"price of {ticker}",
+                f"quote {ticker}",
+                f"insider trading {ticker}",
+                f"earnings {ticker}",
+                f"news {ticker}",
+            ])
+        
+        # Add category-based suggestions
+        for category, tickers in TICKER_CATEGORIES.items():
+            self.all_suggestions.append(f"best {category} stocks")
+            self.all_suggestions.append(f"{category} sector performance")
+            if len(tickers) >= 3:
+                self.all_suggestions.append(f"compare {' '.join(tickers[:3])}")
+    
+    def _fuzzy_match(self, query: str, target: str) -> float:
+        """Calculate fuzzy match score (0-1). Higher is better."""
+        query = query.lower()
+        target = target.lower()
+        
+        # Exact prefix match is best
+        if target.startswith(query):
+            return 1.0 + len(query) / len(target)
+        
+        # Check if all query chars appear in order
+        q_idx = 0
+        matches = 0
+        consecutive = 0
+        max_consecutive = 0
+        last_match = -1
+        
+        for t_idx, char in enumerate(target):
+            if q_idx < len(query) and char == query[q_idx]:
+                matches += 1
+                if last_match == t_idx - 1:
+                    consecutive += 1
+                    max_consecutive = max(max_consecutive, consecutive)
+                else:
+                    consecutive = 1
+                last_match = t_idx
+                q_idx += 1
+        
+        if q_idx < len(query):
+            # Not all chars matched
+            # Try substring match
+            if query in target:
+                return 0.5
+            return 0
+        
+        # Score based on match quality
+        score = (matches / len(query)) * 0.5 + (max_consecutive / len(query)) * 0.3
+        # Bonus for shorter targets (more relevant)
+        score += (1 - len(target) / 100) * 0.2
+        
+        return score
+    
+    def _get_context_suggestions(self, value: str) -> List[str]:
+        """Get context-aware suggestions based on partial input."""
+        suggestions = []
+        value_lower = value.lower().strip()
+        
+        # Command shortcuts
+        if value.startswith("/"):
+            cmd = value_lower[1:]
+            commands = ["/help", "/clear", "/keys", "/models", "/status", "/backtest", 
+                       "/provider", "/model", "/setkey", "/tickers"]
+            for c in commands:
+                if c[1:].startswith(cmd):
+                    suggestions.append(c)
+            return suggestions
+        
+        # Detect if user is typing a ticker
+        words = value.split()
+        last_word = words[-1] if words else ""
+        
+        if last_word.startswith("$") or (last_word.isupper() and len(last_word) >= 1):
+            ticker_prefix = last_word.lstrip("$").upper()
+            matching_tickers = [t for t in COMMON_TICKERS if t.startswith(ticker_prefix)]
+            
+            # If we have an action verb, complete with ticker
+            action_words = ["analyze", "compare", "technical", "price", "quote", 
+                           "fundamentals", "insider", "earnings", "news"]
+            prefix = " ".join(words[:-1]).lower() if len(words) > 1 else ""
+            
+            for ticker in matching_tickers[:5]:
+                if prefix:
+                    suggestions.append(f"{prefix} {ticker}")
+                else:
+                    suggestions.append(f"analyze {ticker}")
+            return suggestions
+        
+        # Natural language patterns
+        patterns = [
+            ("ana", "analyze"),
+            ("tech", "technical analysis of"),
+            ("fun", "fundamentals of"),
+            ("comp", "compare"),
+            ("back", "backtest"),
+            ("mark", "market overview"),
+            ("sect", "sector performance"),
+            ("pri", "price of"),
+            ("quo", "quote"),
+            ("ins", "insider trading"),
+            ("ear", "earnings"),
+            ("wha", "what should I know about"),
+            ("sho", "should I buy"),
+            ("is ", "is NVDA overvalued"),
+            ("how", "how is"),
+            ("bes", "best tech stocks"),
+        ]
+        
+        for prefix, expansion in patterns:
+            if value_lower.startswith(prefix):
+                if expansion.endswith("of") or expansion.endswith("about"):
+                    # Add popular tickers
+                    for ticker in ["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"]:
+                        suggestions.append(f"{expansion} {ticker}")
+                else:
+                    suggestions.append(expansion)
+        
+        return suggestions
     
     async def get_suggestion(self, value: str) -> Optional[str]:
-        """Get autocomplete suggestion."""
-        if not value or len(value) < 2:
+        """Get the best autocomplete suggestion."""
+        if not value or len(value) < 1:
             return None
         
-        value_lower = value.lower()
+        value_lower = value.lower().strip()
         
-        # Check for ticker pattern (all caps or starts with $)
-        if value.startswith("$") or value.isupper():
-            ticker = value.lstrip("$").upper()
-            for common in COMMON_TICKERS:
-                if common.startswith(ticker) and common != ticker:
-                    return f"analyze {common}"
+        # Get context-aware suggestions first
+        context_suggestions = self._get_context_suggestions(value)
+        if context_suggestions:
+            return context_suggestions[0]
         
-        # Standard suggestions
-        for suggestion in SUGGESTIONS:
-            if suggestion.lower().startswith(value_lower):
-                return suggestion
+        # Fuzzy match against all suggestions
+        scored = []
+        for suggestion in self.all_suggestions:
+            score = self._fuzzy_match(value_lower, suggestion)
+            if score > 0:
+                scored.append((score, suggestion))
         
-        # Try partial match in middle of suggestion
-        for suggestion in SUGGESTIONS:
-            if value_lower in suggestion.lower():
-                return suggestion
+        # Sort by score and return best
+        scored.sort(key=lambda x: x[0], reverse=True)
+        
+        if scored:
+            return scored[0][1]
+        
+        # Last resort: if looks like a ticker, suggest analyze
+        if value.isupper() and len(value) <= 5 and value.isalpha():
+            return f"analyze {value}"
         
         return None
 
@@ -230,8 +447,8 @@ Screen {
 
 #status-bar {
     height: 3;
-    background: #0d1117;
-    border-top: solid #1a1a2e;
+    background: #0f1419;
+    border-top: solid #1e293b;
     padding: 0 2;
     dock: bottom;
 }
@@ -256,9 +473,9 @@ Screen {
 #tool-calls-display {
     width: 100%;
     height: auto;
-    max-height: 6;
-    background: #0d1117;
-    border: solid #1a1a2e;
+    max-height: 8;
+    background: #0f1419;
+    border: round #1e293b;
     margin: 0 2;
     padding: 0 1;
     display: none;
@@ -271,7 +488,7 @@ Screen {
 #input-area {
     height: 5;
     padding: 1 2;
-    background: #0d1117;
+    background: #0f1419;
 }
 
 #input-row {
@@ -283,22 +500,24 @@ Screen {
     width: 4;
     height: 3;
     content-align: center middle;
+    background: transparent;
 }
 
 #prompt-input {
     width: 1fr;
-    background: #1a1a2e;
-    border: solid #3b82f6;
-    color: #ffffff;
+    background: #1e293b;
+    border: tall #3b82f6;
+    color: #f8fafc;
     padding: 0 1;
 }
 
 #prompt-input:focus {
-    border: solid #60a5fa;
+    border: tall #60a5fa;
+    background: #1e3a5f;
 }
 
 #prompt-input.-autocomplete {
-    border: solid #22c55e;
+    border: tall #22c55e;
 }
 
 #ticker-highlight {
@@ -306,6 +525,7 @@ Screen {
     height: 1;
     padding: 0 1;
     background: transparent;
+    color: #22d3ee;
 }
 
 Footer {
@@ -380,7 +600,7 @@ class ToolCallDisplay(Static):
     
     def _animate(self):
         """Animate the spinner."""
-        self.frame = (self.frame + 1) % len(TOOL_CALL_FRAMES)
+        self.frame = (self.frame + 1) % len(TOOL_SPINNER_FRAMES)
         for tc in self.tool_calls:
             if tc["status"] == "running":
                 tc["frame"] = self.frame
@@ -394,38 +614,48 @@ class ToolCallDisplay(Static):
         lines = []
         for tc in self.tool_calls:
             if tc["status"] == "running":
-                spinner = TOOL_CALL_FRAMES[tc["frame"]]
+                spinner = TOOL_SPINNER_FRAMES[tc["frame"] % len(TOOL_SPINNER_FRAMES)]
                 lines.append(f"  [cyan]{spinner}[/cyan] [bold]{tc['name']}[/bold] [dim]executing...[/dim]")
             else:
-                lines.append(f"  [green]✓[/green] [bold]{tc['name']}[/bold] [green]complete[/green]")
+                lines.append(f"  [green][ok][/green] [bold]{tc['name']}[/bold] [green]done[/green]")
         
         self.update(Text.from_markup("\n".join(lines)))
 
 
 class SigmaIndicator(Static):
-    """Pulsing sigma indicator with minimal footprint."""
+    """Animated sigma indicator - typewriter style when active."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.active = False
+        self.mode = "idle"  # idle, thinking, tool
         self.frame = 0
         self.timer = None
     
     def on_mount(self):
         self.update(Text.from_markup(f"[bold blue]{SIGMA}[/bold blue]"))
     
-    def set_active(self, active: bool):
+    def set_active(self, active: bool, mode: str = "thinking"):
         self.active = active
+        self.mode = mode if active else "idle"
         if active and not self.timer:
-            self.timer = self.set_interval(0.15, self._pulse)
+            self.frame = 0
+            interval = 0.08 if mode == "thinking" else 0.12
+            self.timer = self.set_interval(interval, self._animate)
         elif not active and self.timer:
             self.timer.stop()
             self.timer = None
             self.update(Text.from_markup(f"[bold blue]{SIGMA}[/bold blue]"))
     
-    def _pulse(self):
-        self.frame = (self.frame + 1) % len(SMALL_SIGMA_FRAMES)
-        self.update(Text.from_markup(SMALL_SIGMA_FRAMES[self.frame]))
+    def _animate(self):
+        if self.mode == "thinking":
+            # Typewriter effect: s -> si -> sig -> sigm -> sigma -> sigm -> ...
+            self.frame = (self.frame + 1) % len(SIGMA_FRAMES)
+            self.update(Text.from_markup(SIGMA_FRAMES[self.frame]))
+        else:
+            # Pulse effect for tool calls
+            self.frame = (self.frame + 1) % len(SIGMA_PULSE_FRAMES)
+            self.update(Text.from_markup(SIGMA_PULSE_FRAMES[self.frame]))
 
 
 class TickerHighlight(Static):
@@ -538,20 +768,28 @@ class SigmaApp(App):
         chat.write_welcome()
         
         provider = getattr(self.settings.default_provider, 'value', str(self.settings.default_provider))
-        chat.write_system(f"{SIGMA} Provider: {provider} | Model: {self.settings.default_model}")
-        chat.write_system(f"{SIGMA} Type /help for commands • Ctrl+H for quick help • Tab to autocomplete")
+        chat.write_system(f"{SIGMA} Provider: [bold]{provider}[/bold] | Model: [bold]{self.settings.default_model}[/bold]")
+        chat.write_system(f"{SIGMA} Type [cyan]/help[/cyan] for commands • [cyan]/keys[/cyan] to set up API keys")
         chat.write_system("")
         
         self._init_llm()
         self.query_one("#prompt-input", Input).focus()
     
     def _init_llm(self):
+        """Initialize the LLM client with proper error handling."""
         try:
             self.llm = get_llm(self.settings.default_provider, self.settings.default_model)
+        except SigmaError as e:
+            chat = self.query_one("#chat-log", ChatLog)
+            chat.write_error(f"[E{e.code}] {e.message}")
+            if e.details.get("hint"):
+                chat.write_system(f"[dim]Hint: {e.details['hint']}[/dim]")
+            self.llm = None
         except Exception as e:
             chat = self.query_one("#chat-log", ChatLog)
-            chat.write_error(f"LLM init failed: {e}")
-            chat.write_system("Use /keys to configure API keys")
+            chat.write_error(f"[E{ErrorCode.PROVIDER_ERROR}] Failed to initialize: {str(e)[:100]}")
+            chat.write_system("[dim]Use /keys to configure API keys[/dim]")
+            self.llm = None
     
     @on(Input.Changed)
     def on_input_change(self, event: Input.Changed):
@@ -687,37 +925,87 @@ class SigmaApp(App):
         ))
     
     def _show_keys(self, chat: ChatLog):
-        chat.write_system(f"""
-[bold]{SIGMA} API Keys[/bold]
-Set key: /setkey <provider> <key>
+        """Show comprehensive API key management interface."""
+        keys_help = f"""
+[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]
+[bold]                    {SIGMA} API KEY MANAGER                     [/bold]
+[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]
 
-Providers: google, openai, anthropic, groq, xai
-Example: /setkey google AIzaSy...
-""")
+[bold yellow]QUICK SETUP[/bold yellow]
+  Set a key:  [cyan]/setkey <provider> <your-api-key>[/cyan]
+  
+[bold yellow]LLM PROVIDERS[/bold yellow]
+  [bold]google[/bold]      → https://aistudio.google.com/apikey
+  [bold]openai[/bold]      → https://platform.openai.com/api-keys
+  [bold]anthropic[/bold]   → https://console.anthropic.com/settings/keys
+  [bold]groq[/bold]        → https://console.groq.com/keys [dim](free!)[/dim]
+  [bold]xai[/bold]         → https://console.x.ai
+
+[bold yellow]DATA PROVIDERS[/bold yellow] [dim](optional - enhances data quality)[/dim]
+  [bold]polygon[/bold]     → https://polygon.io/dashboard/api-keys
+
+[bold yellow]EXAMPLES[/bold yellow]
+  /setkey google AIzaSyB...
+  /setkey openai sk-proj-...
+  /setkey polygon abc123...
+  /provider groq          [dim]← switch to groq[/dim]
+
+[bold yellow]TIPS[/bold yellow]
+  • [green]Groq[/green] is free and fast - great for starting out
+  • [green]Ollama[/green] runs locally - no key needed (/provider ollama)
+  • Keys are stored in [dim]~/.sigma/config.env[/dim]
+"""
+        chat.write(Panel(
+            Text.from_markup(keys_help),
+            title=f"[bold cyan]{SIGMA} API Keys[/bold cyan]",
+            border_style="cyan",
+            padding=(0, 1),
+        ))
         self._show_status(chat)
     
     def _show_status(self, chat: ChatLog):
-        table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column("", style="bold")
-        table.add_column("")
+        """Show current configuration status."""
+        table = Table(show_header=True, box=None, padding=(0, 2), title=f"{SIGMA} Current Status")
+        table.add_column("Setting", style="bold")
+        table.add_column("Value")
+        table.add_column("Status")
         
         provider = getattr(self.settings.default_provider, 'value', str(self.settings.default_provider))
-        table.add_row("Provider", provider)
-        table.add_row("Model", self.settings.default_model)
-        table.add_row("", "")
+        table.add_row("Provider", provider, "[green][*][/green] Active")
+        table.add_row("Model", self.settings.default_model, "")
+        table.add_row("", "", "")
         
-        keys = [
-            ("Google", self.settings.google_api_key),
-            ("OpenAI", self.settings.openai_api_key),
-            ("Anthropic", self.settings.anthropic_api_key),
-            ("Groq", self.settings.groq_api_key),
-            ("xAI", self.settings.xai_api_key),
+        # LLM Keys
+        llm_keys = [
+            ("Google", self.settings.google_api_key, "google"),
+            ("OpenAI", self.settings.openai_api_key, "openai"),
+            ("Anthropic", self.settings.anthropic_api_key, "anthropic"),
+            ("Groq", self.settings.groq_api_key, "groq"),
+            ("xAI", self.settings.xai_api_key, "xai"),
         ]
-        for name, key in keys:
-            status = "[green]OK[/green]" if key else "[dim]--[/dim]"
-            table.add_row(f"  {name}", Text.from_markup(status))
+        for name, key, prov in llm_keys:
+            if key:
+                masked = key[:8] + "..." + key[-4:] if len(key) > 12 else "***"
+                status = "[green][ok][/green]"
+            else:
+                masked = "[dim]not set[/dim]"
+                status = "[dim]--[/dim]"
+            
+            # Highlight active provider
+            if prov == provider:
+                name = f"[bold cyan]{name}[/bold cyan]"
+            table.add_row(f"  {name}", Text.from_markup(masked), Text.from_markup(status))
         
-        chat.write(Panel(table, title=f"[cyan]{SIGMA} Config[/cyan]", border_style="dim"))
+        table.add_row("", "", "")
+        
+        # Data Keys
+        polygon_key = getattr(self.settings, 'polygon_api_key', None)
+        if polygon_key:
+            table.add_row("  Polygon", polygon_key[:8] + "...", Text.from_markup("[green][ok][/green]"))
+        else:
+            table.add_row("  Polygon", Text.from_markup("[dim]not set[/dim]"), Text.from_markup("[dim]optional[/dim]"))
+        
+        chat.write(Panel(table, border_style="dim"))
     
     def _show_models(self, chat: ChatLog):
         table = Table(title=f"{SIGMA} Models", show_header=True, border_style="dim")
@@ -756,18 +1044,46 @@ Example: /setkey google AIzaSy...
         chat.write_system(f"Model: {model}")
     
     def _set_key(self, provider: str, key: str, chat: ChatLog):
+        """Save an API key for a provider."""
+        # Normalize provider name
+        provider = provider.lower().strip()
+        valid_providers = ["google", "openai", "anthropic", "groq", "xai", "polygon", "alphavantage", "exa"]
+        
+        if provider not in valid_providers:
+            chat.write_error(f"[E{ErrorCode.INVALID_INPUT}] Unknown provider: {provider}")
+            chat.write_system(f"Valid providers: {', '.join(valid_providers)}")
+            return
+        
+        # Basic key validation
+        key = key.strip()
+        if len(key) < 10:
+            chat.write_error(f"[E{ErrorCode.INVALID_INPUT}] API key seems too short")
+            return
+        
         try:
-            save_api_key(LLMProvider(provider), key)
-            chat.write_system(f"{SIGMA} Key saved for {provider}")
-            if provider == getattr(self.settings.default_provider, 'value', ''):
-                self._init_llm()
+            success = save_api_key(provider, key)
+            if success:
+                # Reload settings
+                self.settings = get_settings()
+                
+                # Show success with masked key
+                masked = key[:6] + "..." + key[-4:] if len(key) > 10 else "***"
+                chat.write_system(f"[green][ok][/green] {SIGMA} Key saved for [bold]{provider}[/bold]: {masked}")
+                
+                # Auto-switch to this provider if it's an LLM provider and we don't have an LLM
+                llm_providers = ["google", "openai", "anthropic", "groq", "xai"]
+                if provider in llm_providers:
+                    if not self.llm or provider == getattr(self.settings.default_provider, 'value', ''):
+                        self._switch_provider(provider, chat)
+            else:
+                chat.write_error(f"[E{ErrorCode.UNKNOWN_ERROR}] Failed to save key")
         except Exception as e:
-            chat.write_error(str(e))
+            chat.write_error(f"[E{ErrorCode.UNKNOWN_ERROR}] {str(e)}")
     
     @work(exclusive=True)
     async def _process_query(self, query: str, chat: ChatLog):
         if not self.llm:
-            chat.write_error("No LLM. Use /keys to configure.")
+            chat.write_error(f"[E{ErrorCode.API_KEY_MISSING}] No LLM configured. Use /keys to set up.")
             return
         
         self.is_processing = True
@@ -777,7 +1093,7 @@ Example: /setkey google AIzaSy...
         
         # Clear ticker highlight and start sigma animation
         ticker_highlight.update("")
-        indicator.set_active(True)
+        indicator.set_active(True, mode="thinking")
         
         try:
             messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -808,10 +1124,24 @@ Example: /setkey google AIzaSy...
                 if len(self.conversation) > 20:
                     self.conversation = self.conversation[-20:]
             else:
-                chat.write_error("No response")
+                chat.write_error(f"[E{ErrorCode.RESPONSE_INVALID}] No response received")
+                
+        except SigmaError as e:
+            tool_display.clear()
+            # Format SigmaError nicely
+            chat.write_error(f"[E{e.code}] {e.message}")
+            if e.details.get("hint"):
+                chat.write_system(f"[dim]Hint: {e.details['hint']}[/dim]")
         except Exception as e:
             tool_display.clear()
-            chat.write_error(str(e))
+            # Try to parse common API errors
+            error_str = str(e)
+            if "401" in error_str or "invalid" in error_str.lower() and "key" in error_str.lower():
+                chat.write_error(f"[E{ErrorCode.API_KEY_INVALID}] API key is invalid. Use /keys to update.")
+            elif "429" in error_str or "rate" in error_str.lower():
+                chat.write_error(f"[E{ErrorCode.API_KEY_RATE_LIMITED}] Rate limit hit. Wait a moment and try again.")
+            else:
+                chat.write_error(f"[E{ErrorCode.PROVIDER_ERROR}] {error_str[:200]}")
         finally:
             indicator.set_active(False)
             self.is_processing = False

@@ -1,9 +1,9 @@
 """
-Sigma v3.3.2 - Finance Research Agent
+Sigma v3.4.0 - Finance Research Agent
 
 An elite finance research agent combining:
 - Multi-provider AI (Google Gemini, OpenAI, Anthropic, Groq, xAI, Ollama)
-- Real-time market data and analytics
+- Real-time market data and analytics (yfinance, Polygon.io)
 - Advanced charting and visualization
 - Strategy discovery and backtesting
 - Portfolio optimization and risk management
@@ -12,15 +12,15 @@ An elite finance research agent combining:
 - Monitoring, alerts, and watchlists
 """
 
-__version__ = "3.3.2"
+__version__ = "3.4.0"
 __author__ = "Sigma Team"
 
 # Core functionality
 from .app import launch, SigmaApp
 from .cli import main
 
-# Configuration
-from .config import get_settings, save_api_key, LLMProvider
+# Configuration and Errors
+from .config import get_settings, save_api_key, LLMProvider, ErrorCode, SigmaError
 
 # Data tools
 from .tools import (

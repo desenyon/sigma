@@ -584,6 +584,211 @@ def get_market_news(tickers: str = "", topics: str = "") -> dict:
 
 
 # ============================================================================
+# POLYGON.IO TOOLS (Real-time & Historical Market Data)
+# ============================================================================
+
+def _get_polygon_key() -> Optional[str]:
+    """Get Polygon.io API key from config."""
+    try:
+        from .config import get_settings
+        return get_settings().polygon_api_key
+    except:
+        return None
+
+
+def polygon_get_quote(symbol: str) -> dict:
+    """Get real-time quote from Polygon.io with additional data."""
+    api_key = _get_polygon_key()
+    if not api_key:
+        return {"error": "Polygon API key not configured. Use /setkey polygon <key>", "fallback": True}
+    
+    import requests
+    
+    try:
+        symbol = symbol.upper()
+        
+        # Get previous day's data
+        prev_url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/prev?adjusted=true&apiKey={api_key}"
+        prev_response = requests.get(prev_url, timeout=10)
+        
+        if prev_response.status_code == 403:
+            return {"error": "Polygon API key is invalid or expired", "error_code": 1101}
+        elif prev_response.status_code == 429:
+            return {"error": "Polygon rate limit exceeded", "error_code": 1303}
+        elif prev_response.status_code != 200:
+            return {"error": f"Polygon API error: {prev_response.status_code}"}
+        
+        prev_data = prev_response.json()
+        
+        if prev_data.get("resultsCount", 0) == 0:
+            return {"error": f"No data found for {symbol}", "error_code": 1300}
+        
+        result = prev_data["results"][0]
+        
+        # Get ticker details
+        details_url = f"https://api.polygon.io/v3/reference/tickers/{symbol}?apiKey={api_key}"
+        details_response = requests.get(details_url, timeout=10)
+        details = {}
+        if details_response.status_code == 200:
+            details_data = details_response.json()
+            if details_data.get("results"):
+                details = details_data["results"]
+        
+        return {
+            "symbol": symbol,
+            "name": details.get("name", symbol),
+            "open": result.get("o", 0),
+            "high": result.get("h", 0),
+            "low": result.get("l", 0),
+            "close": result.get("c", 0),
+            "volume": result.get("v", 0),
+            "vwap": result.get("vw", 0),
+            "timestamp": result.get("t"),
+            "transactions": result.get("n", 0),
+            "market_cap": details.get("market_cap"),
+            "primary_exchange": details.get("primary_exchange"),
+            "type": details.get("type"),
+            "source": "polygon.io"
+        }
+    except requests.exceptions.Timeout:
+        return {"error": "Request timed out", "error_code": 1002}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Connection error", "error_code": 1400}
+    except Exception as e:
+        return {"error": str(e), "error_code": 1000}
+
+
+def polygon_get_aggregates(symbol: str, timespan: str = "day", multiplier: int = 1, 
+                           from_date: str = "", to_date: str = "", limit: int = 120) -> dict:
+    """Get historical aggregated bars from Polygon.io."""
+    api_key = _get_polygon_key()
+    if not api_key:
+        return {"error": "Polygon API key not configured. Use /setkey polygon <key>"}
+    
+    import requests
+    
+    try:
+        symbol = symbol.upper()
+        
+        # Default date range: last 6 months
+        if not to_date:
+            to_date = datetime.now().strftime("%Y-%m-%d")
+        if not from_date:
+            from_date = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+        
+        url = (f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/"
+               f"{multiplier}/{timespan}/{from_date}/{to_date}"
+               f"?adjusted=true&sort=desc&limit={limit}&apiKey={api_key}")
+        
+        response = requests.get(url, timeout=15)
+        
+        if response.status_code != 200:
+            return {"error": f"Polygon API error: {response.status_code}"}
+        
+        data = response.json()
+        
+        if data.get("resultsCount", 0) == 0:
+            return {"error": f"No data found for {symbol}"}
+        
+        results = data["results"]
+        
+        # Calculate statistics
+        closes = [r["c"] for r in results]
+        highs = [r["h"] for r in results]
+        lows = [r["l"] for r in results]
+        volumes = [r["v"] for r in results]
+        
+        latest = results[0]
+        oldest = results[-1]
+        
+        return {
+            "symbol": symbol,
+            "timespan": timespan,
+            "from": from_date,
+            "to": to_date,
+            "data_points": len(results),
+            "latest_close": latest["c"],
+            "oldest_close": oldest["c"],
+            "period_return": round((latest["c"] / oldest["c"] - 1) * 100, 2),
+            "high": max(highs),
+            "low": min(lows),
+            "avg_volume": int(sum(volumes) / len(volumes)),
+            "total_volume": sum(volumes),
+            "source": "polygon.io"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def polygon_get_ticker_news(symbol: str, limit: int = 10) -> dict:
+    """Get news articles for a ticker from Polygon.io."""
+    api_key = _get_polygon_key()
+    if not api_key:
+        return {"error": "Polygon API key not configured. Use /setkey polygon <key>"}
+    
+    import requests
+    
+    try:
+        symbol = symbol.upper()
+        url = f"https://api.polygon.io/v2/reference/news?ticker={symbol}&limit={limit}&apiKey={api_key}"
+        
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code != 200:
+            return {"error": f"Polygon API error: {response.status_code}"}
+        
+        data = response.json()
+        articles = []
+        
+        for item in data.get("results", []):
+            articles.append({
+                "title": item.get("title", ""),
+                "author": item.get("author", ""),
+                "published": item.get("published_utc", ""),
+                "article_url": item.get("article_url", ""),
+                "tickers": item.get("tickers", []),
+                "description": item.get("description", "")[:300] + "..." if item.get("description") else "",
+                "keywords": item.get("keywords", [])[:5]
+            })
+        
+        return {
+            "symbol": symbol,
+            "articles": articles,
+            "source": "polygon.io"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def polygon_market_status() -> dict:
+    """Get current market status from Polygon.io."""
+    api_key = _get_polygon_key()
+    if not api_key:
+        return {"error": "Polygon API key not configured. Use /setkey polygon <key>"}
+    
+    import requests
+    
+    try:
+        url = f"https://api.polygon.io/v1/marketstatus/now?apiKey={api_key}"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code != 200:
+            return {"error": f"Polygon API error: {response.status_code}"}
+        
+        data = response.json()
+        
+        return {
+            "market": data.get("market", "unknown"),
+            "server_time": data.get("serverTime"),
+            "exchanges": data.get("exchanges", {}),
+            "currencies": data.get("currencies", {}),
+            "source": "polygon.io"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================================
 # EXA SEARCH TOOLS (Financial News, SEC Filings)
 # ============================================================================
 
@@ -1008,6 +1213,67 @@ TOOLS = [
             }
         }
     },
+    # Polygon.io tools (enhanced market data)
+    {
+        "type": "function",
+        "function": {
+            "name": "polygon_get_quote",
+            "description": "Get real-time stock quote with extended data from Polygon.io (requires API key)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol (e.g., AAPL, MSFT)"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "polygon_get_aggregates",
+            "description": "Get historical price aggregates/bars from Polygon.io with custom timespan",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"},
+                    "timespan": {"type": "string", "enum": ["minute", "hour", "day", "week", "month"], "description": "Size of time window", "default": "day"},
+                    "multiplier": {"type": "integer", "description": "Size multiplier for timespan", "default": 1},
+                    "from_date": {"type": "string", "description": "Start date (YYYY-MM-DD)", "default": ""},
+                    "to_date": {"type": "string", "description": "End date (YYYY-MM-DD)", "default": ""},
+                    "limit": {"type": "integer", "description": "Number of results", "default": 120}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "polygon_get_ticker_news",
+            "description": "Get recent news articles for a stock from Polygon.io",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"},
+                    "limit": {"type": "integer", "description": "Number of articles", "default": 10}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "polygon_market_status",
+            "description": "Get current market status (open/closed) from Polygon.io",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
 ]
 
 
@@ -1032,12 +1298,20 @@ TOOL_FUNCTIONS = {
     "search_financial_news": search_financial_news,
     "search_sec_filings": search_sec_filings,
     "search_earnings_transcripts": search_earnings_transcripts,
+    # Polygon.io
+    "polygon_get_quote": polygon_get_quote,
+    "polygon_get_aggregates": polygon_get_aggregates,
+    "polygon_get_ticker_news": polygon_get_ticker_news,
+    "polygon_market_status": polygon_market_status,
 }
 
 
 def execute_tool(name: str, args: dict) -> Any:
-    """Execute a tool by name."""
+    """Execute a tool by name with error handling."""
     func = TOOL_FUNCTIONS.get(name)
     if func:
-        return func(**args)
-    return {"error": f"Unknown tool: {name}"}
+        try:
+            return func(**args)
+        except Exception as e:
+            return {"error": f"Tool execution failed: {str(e)}", "error_code": 1000}
+    return {"error": f"Unknown tool: {name}", "error_code": 1001}

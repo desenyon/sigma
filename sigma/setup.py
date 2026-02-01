@@ -1,4 +1,4 @@
-"""Sigma v3.3.1 - Setup Wizard."""
+"""Sigma v3.4.0 - Setup Wizard."""
 
 import os
 import sys
@@ -25,20 +25,20 @@ from .config import (
 )
 
 
-__version__ = "3.3.1"
+__version__ = "3.4.0"
 SIGMA = "σ"
 console = Console()
 
-# Clean banner - just SIGMA, no SETU
+# Clean banner - just SIGMA
 BANNER = """
-[bold blue]███████╗██╗ ██████╗ ███╗   ███╗ █████╗ [/bold blue]
-[bold blue]██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗[/bold blue]
-[bold blue]███████╗██║██║  ███╗██╔████╔██║███████║[/bold blue]
-[bold blue]╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║[/bold blue]
-[bold blue]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold blue]
-[bold blue]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold blue]
+[bold #3b82f6]███████╗██╗ ██████╗ ███╗   ███╗ █████╗ [/bold #3b82f6]
+[bold #60a5fa]██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗[/bold #60a5fa]
+[bold #93c5fd]███████╗██║██║  ███╗██╔████╔██║███████║[/bold #93c5fd]
+[bold #60a5fa]╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║[/bold #60a5fa]
+[bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
+[bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
 
-[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.3.1[/dim]
+[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.4.0[/dim]
 """
 
 
@@ -265,7 +265,7 @@ class SetupWizard:
         if self.settings.default_provider != LLMProvider.OLLAMA:
             ollama_running, ollama_host = detect_ollama()
             if ollama_running and ollama_host:
-                console.print(f"[green]✓[/green] Ollama detected at {ollama_host}")
+                console.print(f"[green][ok][/green] Ollama detected at {ollama_host}")
                 if Confirm.ask("Enable Ollama as local fallback?", default=True):
                     save_setting("ollama_host", ollama_host)
                     console.print(f"[cyan]{SIGMA}[/cyan] Ollama enabled")
@@ -280,7 +280,7 @@ class SetupWizard:
         lean_installed, lean_cli, lean_dir = detect_lean_installation()
         
         if lean_installed:
-            console.print(f"[green]✓[/green] LEAN/QuantConnect detected!")
+            console.print(f"[green][ok][/green] LEAN/QuantConnect detected!")
             if lean_cli:
                 console.print(f"  [dim]CLI: {lean_cli}[/dim]")
             if lean_dir:
@@ -316,7 +316,7 @@ class SetupWizard:
                     success, message = install_lean_cli_sync()
                 
                 if success:
-                    console.print(f"[green]✓[/green] {message}")
+                    console.print(f"[green][ok][/green] {message}")
                     save_setting("lean_enabled", "true")
                     save_setting("lean_cli_path", "lean")
                     
@@ -325,7 +325,7 @@ class SetupWizard:
                     if lean_cli:
                         console.print(f"[cyan]{SIGMA}[/cyan] LEAN CLI ready: {lean_cli}")
                 else:
-                    console.print(f"[red]✗[/red] {message}")
+                    console.print(f"[red][x][/red] {message}")
                     console.print("[dim]You can install manually later: pip install lean[/dim]")
             
             elif lean_choice == "manual":

@@ -355,44 +355,62 @@ def _calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: i
 
 
 def _apply_layout(fig: go.Figure, title: str, has_volume: bool):
-    """Apply Sigma theme to chart."""
+    """Apply Sigma theme to chart with publication-grade styling."""
     fig.update_layout(
         title=dict(
-            text=title,
-            font=dict(size=18, color=SIGMA_THEME["text_color"]),
+            text=f"<b>{title}</b>",
+            font=dict(size=20, color=SIGMA_THEME["text_color"], family="SF Pro Display, -apple-system, sans-serif"),
             x=0.5,
+            xanchor="center",
         ),
         paper_bgcolor=SIGMA_THEME["paper_color"],
         plot_bgcolor=SIGMA_THEME["bg_color"],
-        font=dict(color=SIGMA_THEME["text_color"], family="SF Mono, Menlo, monospace"),
+        font=dict(color=SIGMA_THEME["text_color"], family="SF Pro Display, -apple-system, sans-serif", size=12),
         xaxis=dict(
             gridcolor=SIGMA_THEME["grid_color"],
             showgrid=True,
+            gridwidth=1,
             zeroline=False,
+            showline=True,
+            linewidth=1,
+            linecolor=SIGMA_THEME["grid_color"],
+            tickfont=dict(size=11),
         ),
         yaxis=dict(
             gridcolor=SIGMA_THEME["grid_color"],
             showgrid=True,
+            gridwidth=1,
             zeroline=False,
+            showline=True,
+            linewidth=1,
+            linecolor=SIGMA_THEME["grid_color"],
             title_text="Price ($)",
+            tickfont=dict(size=11),
+            tickformat="$,.2f",
         ),
         legend=dict(
             bgcolor="rgba(0,0,0,0)",
-            font=dict(color=SIGMA_THEME["text_color"]),
+            font=dict(color=SIGMA_THEME["text_color"], size=11),
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="right",
             x=1,
         ),
-        margin=dict(l=60, r=40, t=80, b=40),
+        margin=dict(l=70, r=50, t=90, b=50),
         xaxis_rangeslider_visible=False,
         hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor=SIGMA_THEME["bg_color"],
+            font_size=12,
+            font_family="SF Mono, Menlo, monospace",
+            bordercolor=SIGMA_THEME["accent"],
+        ),
     )
 
 
 def _save_chart(fig: go.Figure, name: str) -> str:
-    """Save chart to file and return path."""
+    """Save chart to file with maximum quality and return path."""
     
     # Create charts directory
     charts_dir = os.path.expanduser("~/.sigma/charts")
@@ -402,6 +420,13 @@ def _save_chart(fig: go.Figure, name: str) -> str:
     filename = f"{name}_{timestamp}.png"
     filepath = os.path.join(charts_dir, filename)
     
-    fig.write_image(filepath, width=1200, height=800, scale=2)
+    # High quality export settings
+    fig.write_image(
+        filepath, 
+        width=1600,      # Higher resolution 
+        height=1000,     # Better aspect ratio
+        scale=3,         # 3x scaling for retina/high-DPI
+        engine="kaleido"
+    )
     
     return filepath

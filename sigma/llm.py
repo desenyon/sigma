@@ -7,7 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator, Callable, Optional
 
-from sigma.config import LLMProvider, get_settings
+from sigma.config import LLMProvider, get_settings, ErrorCode, SigmaError
 
 
 # Rate limiting configuration
@@ -601,6 +601,123 @@ class OllamaLLM(BaseLLM):
         return "\n".join(lines)
 
 
+class XaiLLM(BaseLLM):
+    """xAI Grok client (uses OpenAI-compatible API)."""
+    
+    provider_name = "xai"
+    
+    def __init__(self, api_key: str, model: str):
+        from openai import AsyncOpenAI
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://api.x.ai/v1"
+        )
+        self.model = model
+    
+    async def generate(
+        self,
+        messages: list[dict],
+        tools: Optional[list[dict]] = None,
+        on_tool_call: Optional[Callable] = None,
+    ) -> str:
+        await self._rate_limit()
+        
+        try:
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+            }
+            
+            if tools:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+            
+            response = await self.client.chat.completions.create(**kwargs)
+            message = response.choices[0].message
+            
+            # Handle tool calls
+            if message.tool_calls and on_tool_call:
+                tool_results = []
+                for tc in message.tool_calls:
+                    args = json.loads(tc.function.arguments)
+                    result = await on_tool_call(tc.function.name, args)
+                    tool_results.append({
+                        "tool_call_id": tc.id,
+                        "role": "tool",
+                        "content": json.dumps(result)
+                    })
+                
+                # Continue with tool results
+                messages = messages + [message.model_dump()] + tool_results
+                return await self.generate(messages, tools, on_tool_call)
+            
+            return message.content or ""
+            
+        except Exception as e:
+            error_str = str(e)
+            if "401" in error_str or "invalid_api_key" in error_str:
+                raise SigmaError(
+                    ErrorCode.API_KEY_INVALID,
+                    "xAI API key is invalid",
+                    {"provider": "xai"}
+                )
+            elif "429" in error_str or "rate_limit" in error_str:
+                raise SigmaError(
+                    ErrorCode.API_KEY_RATE_LIMITED,
+                    "xAI rate limit exceeded. Please wait.",
+                    {"provider": "xai"}
+                )
+            raise
+
+
+def _parse_api_error(error: Exception, provider: str) -> SigmaError:
+    """Parse API errors into SigmaError with proper codes."""
+    error_str = str(error).lower()
+    
+    if "401" in error_str or "invalid_api_key" in error_str or "api key not valid" in error_str:
+        return SigmaError(
+            ErrorCode.API_KEY_INVALID,
+            f"{provider.title()} API key is invalid. Check your key at /keys",
+            {"provider": provider, "original_error": str(error)[:200]}
+        )
+    elif "403" in error_str or "forbidden" in error_str:
+        return SigmaError(
+            ErrorCode.API_KEY_INVALID,
+            f"{provider.title()} API key doesn't have access to this model",
+            {"provider": provider}
+        )
+    elif "429" in error_str or "rate_limit" in error_str or "quota" in error_str:
+        return SigmaError(
+            ErrorCode.API_KEY_RATE_LIMITED,
+            f"{provider.title()} rate limit exceeded. Wait a moment.",
+            {"provider": provider}
+        )
+    elif "404" in error_str or "not found" in error_str or "does not exist" in error_str:
+        return SigmaError(
+            ErrorCode.MODEL_NOT_FOUND,
+            f"Model not found. Try /models to see available options.",
+            {"provider": provider}
+        )
+    elif "timeout" in error_str:
+        return SigmaError(
+            ErrorCode.TIMEOUT,
+            "Request timed out. Try a simpler query.",
+            {"provider": provider}
+        )
+    elif "connection" in error_str:
+        return SigmaError(
+            ErrorCode.CONNECTION_ERROR,
+            f"Cannot connect to {provider.title()}. Check internet.",
+            {"provider": provider}
+        )
+    else:
+        return SigmaError(
+            ErrorCode.PROVIDER_ERROR,
+            f"{provider.title()} error: {str(error)[:150]}",
+            {"provider": provider, "original_error": str(error)[:300]}
+        )
+
+
 def get_llm(provider: LLMProvider, model: Optional[str] = None) -> BaseLLM:
     """Get LLM client for a provider."""
     settings = get_settings()
@@ -611,29 +728,59 @@ def get_llm(provider: LLMProvider, model: Optional[str] = None) -> BaseLLM:
     if provider == LLMProvider.GOOGLE:
         api_key = settings.google_api_key
         if not api_key:
-            raise ValueError("Google API key not configured")
+            raise SigmaError(
+                ErrorCode.API_KEY_MISSING,
+                "Google API key not configured. Use /keys to set up.",
+                {"provider": "google", "hint": "Get key at: https://aistudio.google.com/apikey"}
+            )
         return GoogleLLM(api_key, model)
     
     elif provider == LLMProvider.OPENAI:
         api_key = settings.openai_api_key
         if not api_key:
-            raise ValueError("OpenAI API key not configured")
+            raise SigmaError(
+                ErrorCode.API_KEY_MISSING,
+                "OpenAI API key not configured. Use /keys to set up.",
+                {"provider": "openai", "hint": "Get key at: https://platform.openai.com/api-keys"}
+            )
         return OpenAILLM(api_key, model)
     
     elif provider == LLMProvider.ANTHROPIC:
         api_key = settings.anthropic_api_key
         if not api_key:
-            raise ValueError("Anthropic API key not configured")
+            raise SigmaError(
+                ErrorCode.API_KEY_MISSING,
+                "Anthropic API key not configured. Use /keys to set up.",
+                {"provider": "anthropic", "hint": "Get key at: https://console.anthropic.com/settings/keys"}
+            )
         return AnthropicLLM(api_key, model)
     
     elif provider == LLMProvider.GROQ:
         api_key = settings.groq_api_key
         if not api_key:
-            raise ValueError("Groq API key not configured")
+            raise SigmaError(
+                ErrorCode.API_KEY_MISSING,
+                "Groq API key not configured. Use /keys to set up.",
+                {"provider": "groq", "hint": "Get key at: https://console.groq.com/keys"}
+            )
         return GroqLLM(api_key, model)
+    
+    elif provider == LLMProvider.XAI:
+        api_key = settings.xai_api_key
+        if not api_key:
+            raise SigmaError(
+                ErrorCode.API_KEY_MISSING,
+                "xAI API key not configured. Use /keys to set up.",
+                {"provider": "xai", "hint": "Get key at: https://console.x.ai"}
+            )
+        return XaiLLM(api_key, model)
     
     elif provider == LLMProvider.OLLAMA:
         return OllamaLLM(settings.ollama_host, model)
     
     else:
-        raise ValueError(f"Unsupported provider: {provider}")
+        raise SigmaError(
+            ErrorCode.PROVIDER_UNAVAILABLE,
+            f"Unsupported provider: {provider}",
+            {"provider": str(provider)}
+        )
