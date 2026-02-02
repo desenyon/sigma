@@ -1,4 +1,4 @@
-"""Sigma v3.4.0 - Finance Research Agent."""
+"""Sigma v3.4.1 - Finance Research Agent."""
 
 import asyncio
 import os
@@ -23,7 +23,7 @@ from .tools import TOOLS, execute_tool
 from .backtest import run_backtest, get_available_strategies, BACKTEST_TOOL
 
 
-__version__ = "3.4.0"
+__version__ = "3.4.1"
 SIGMA = "σ"
 
 # Common stock tickers for recognition
@@ -38,35 +38,72 @@ COMMON_TICKERS = {
     "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VXX", "ARKK", "XLF", "XLK", "XLE",
 }
 
-# Sigma animation frames - color cycling for thinking/processing state
+
+def format_return(value: float, include_sign: bool = True) -> str:
+    """Format a return value with color coding. Green for positive, red for negative."""
+    if value > 0:
+        sign = "+" if include_sign else ""
+        return f"[#22c55e]{sign}{value:.2f}%[/#22c55e]"
+    elif value < 0:
+        return f"[#ef4444]{value:.2f}%[/#ef4444]"
+    else:
+        return f"[dim]{value:.2f}%[/dim]"
+
+
+def format_price_change(price: float, change: float, change_pct: float) -> str:
+    """Format price with change indicators."""
+    if change >= 0:
+        arrow = "^"
+        color = "#22c55e"
+        sign = "+"
+    else:
+        arrow = "v"
+        color = "#ef4444"
+        sign = ""
+    return f"[bold]${price:.2f}[/bold] [{color}]{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)[/{color}]"
+
+
+def format_metric(label: str, value: str, good: Optional[bool] = None) -> str:
+    """Format a metric with optional good/bad coloring."""
+    if good is True:
+        return f"[dim]{label}:[/dim] [#22c55e]{value}[/#22c55e]"
+    elif good is False:
+        return f"[dim]{label}:[/dim] [#ef4444]{value}[/#ef4444]"
+    else:
+        return f"[dim]{label}:[/dim] [bold]{value}[/bold]"
+
+
+# Sigma animation frames - smooth color breathing like Claude Code
 SIGMA_FRAMES = [
-    "[bold #3b82f6]s[/bold #3b82f6]",
-    "[bold #60a5fa]si[/bold #60a5fa]",
-    "[bold #93c5fd]sig[/bold #93c5fd]",
-    "[bold #bfdbfe]sigm[/bold #bfdbfe]",
-    "[bold white]sigma[/bold white]",
-    "[bold #bfdbfe]sigm[/bold #bfdbfe]",
-    "[bold #93c5fd]sig[/bold #93c5fd]",
-    "[bold #60a5fa]si[/bold #60a5fa]",
-    "[bold #3b82f6]s[/bold #3b82f6]",
-    "[bold cyan].[/bold cyan]",
+    "[bold #1e3a8a]σ[/bold #1e3a8a]",
+    "[bold #1e40af]σ[/bold #1e40af]",
+    "[bold #2563eb]σ[/bold #2563eb]",
+    "[bold #3b82f6]σ[/bold #3b82f6]",
+    "[bold #60a5fa]σ[/bold #60a5fa]",
+    "[bold #93c5fd]σ[/bold #93c5fd]",
+    "[bold #bfdbfe]σ[/bold #bfdbfe]",
+    "[bold white]σ[/bold white]",
+    "[bold #bfdbfe]σ[/bold #bfdbfe]",
+    "[bold #93c5fd]σ[/bold #93c5fd]",
+    "[bold #60a5fa]σ[/bold #60a5fa]",
+    "[bold #3b82f6]σ[/bold #3b82f6]",
+    "[bold #2563eb]σ[/bold #2563eb]",
+    "[bold #1e40af]σ[/bold #1e40af]",
 ]
 
-# Sigma pulse animation (color breathing)
+# Sigma pulse animation for tool calls (faster pulse)
 SIGMA_PULSE_FRAMES = [
-    "[bold #1e40af]o[/bold #1e40af]",
-    "[bold #2563eb]o[/bold #2563eb]",
-    "[bold #3b82f6]o[/bold #3b82f6]",
-    "[bold #60a5fa]o[/bold #60a5fa]",
-    "[bold #93c5fd]o[/bold #93c5fd]",
-    "[bold #bfdbfe]o[/bold #bfdbfe]",
-    "[bold #93c5fd]o[/bold #93c5fd]",
-    "[bold #60a5fa]o[/bold #60a5fa]",
-    "[bold #3b82f6]o[/bold #3b82f6]",
-    "[bold #2563eb]o[/bold #2563eb]",
+    "[bold #22c55e]σ[/bold #22c55e]",
+    "[bold #4ade80]σ[/bold #4ade80]",
+    "[bold #86efac]σ[/bold #86efac]",
+    "[bold #bbf7d0]σ[/bold #bbf7d0]",
+    "[bold #86efac]σ[/bold #86efac]",
+    "[bold #4ade80]σ[/bold #4ade80]",
+    "[bold #22c55e]σ[/bold #22c55e]",
+    "[bold #16a34a]σ[/bold #16a34a]",
 ]
 
-# Tool call spinner frames - ASCII based
+# Tool call spinner frames - classic ASCII spinner
 TOOL_SPINNER_FRAMES = [
     "|", "/", "-", "\\"
 ]
@@ -80,20 +117,31 @@ WELCOME_BANNER = """
 [bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
 [bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
 
-[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.4.0[/dim]
+[bold cyan]Finance Research Agent[/bold cyan]  [dim]v3.4.1[/dim]
 """
 
-SYSTEM_PROMPT = """You are Sigma (σ), an elite AI-powered Finance Research Agent. You combine the analytical rigor of a quantitative analyst, the market intuition of a seasoned portfolio manager, and the communication clarity of a top financial advisor.
+SYSTEM_PROMPT = """You are Sigma, an elite AI-powered Finance Research Agent. You combine the analytical rigor of a quantitative analyst, the market intuition of a seasoned portfolio manager, and the communication clarity of a top financial advisor.
 
 CORE CAPABILITIES:
-- Real-time market data analysis (quotes, charts, technicals) via yfinance and Polygon.io
-- Fundamental analysis (financials, ratios, earnings, valuations)
-- Technical analysis (RSI, MACD, Bollinger Bands, moving averages, support/resistance)
-- Backtesting strategies (SMA crossover, RSI, MACD, Bollinger, momentum, breakout)
-- Portfolio analysis and optimization
-- Sector and market overview with economic indicators
+- Real-time market data (quotes, prices, volume) via yfinance and Polygon.io
+- Chart generation (candlestick, line, technical, comparison charts)
+- Fundamental analysis (financials, ratios, earnings, valuations, balance sheets)
+- Technical analysis (RSI, MACD, Bollinger Bands, SMA/EMA, support/resistance)
+- Valuation analysis (P/E, P/B, PEG, EV/EBITDA with fair value assessment)
+- Risk metrics (volatility, VaR, max drawdown, Sharpe, Sortino, Beta, Alpha)
+- Earnings analysis (EPS, upcoming dates, quarterly history, surprises)
+- Dividend analysis (yield, payout ratio, growth, ex-dividend dates)
+- Options analysis (put/call ratio, implied volatility, sentiment)
+- Peer comparison (industry peers on key metrics)
+- Backtesting (SMA crossover, RSI, MACD, Bollinger, momentum, breakout)
+- Market overview with sector performance and economic indicators
 - Insider trading and institutional activity tracking
 - Financial news search and SEC filings analysis
+
+CHART GENERATION:
+- Use generate_stock_chart for single stock charts (candlestick, line, technical)
+- Use generate_comparison_chart for comparing multiple stocks visually
+- Charts are saved as PNG files - always mention the file path
 
 RESPONSE PHILOSOPHY:
 1. BE PROACTIVE: Anticipate follow-up questions and address them
@@ -107,6 +155,7 @@ RESPONSE FORMAT:
 - Use structured sections with clear headers (## format)
 - Present comparative data in markdown tables
 - Highlight key metrics: **bold** for critical numbers
+- For returns: indicate positive (+) or negative (-) clearly
 - Use bullet points for easy scanning
 - End with "**Bottom Line:**" or "**Recommendation:**"
 
@@ -183,11 +232,27 @@ SUGGESTIONS = [
     "insider trading for AAPL",
     "institutional holders of NVDA",
     "analyst recommendations for TSLA",
+    # Chart generation
+    "plot AAPL stock chart",
+    "chart NVDA candlestick",
+    "show me a chart of TSLA",
+    "compare AAPL MSFT GOOGL chart",
+    "technical chart for SPY",
+    "generate chart for AMZN",
+    # Advanced analysis
+    "valuation of AAPL",
+    "risk metrics for NVDA",
+    "is TSLA overvalued",
+    "dividend analysis of JNJ",
+    "options summary for SPY",
+    "peer comparison for NVDA",
+    "earnings analysis of AAPL",
     # Natural language queries
     "what should I know about AAPL",
-    "is NVDA overvalued",
     "best tech stocks right now",
     "should I buy TSLA",
+    "how risky is NVDA",
+    "what is the P/E of MSFT",
     # Commands
     "/help",
     "/clear",
@@ -202,7 +267,8 @@ ACTION_VERBS = [
     "analyze", "compare", "show", "get", "what is", "tell me about",
     "technical analysis", "fundamentals", "price", "quote", "chart",
     "backtest", "insider trading", "institutional", "analyst", "earnings",
-    "financials", "valuation", "news", "sector", "market", "portfolio"
+    "financials", "valuation", "risk", "dividend", "options", "peers",
+    "news", "sector", "market", "portfolio"
 ]
 
 # Ticker categories for smart suggestions
@@ -565,7 +631,7 @@ Footer > .footer--description {
 
 
 class ToolCallDisplay(Static):
-    """Animated display for tool calls."""
+    """Animated display for tool calls - professional tool execution view."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -575,11 +641,13 @@ class ToolCallDisplay(Static):
     
     def add_tool_call(self, name: str, status: str = "running"):
         """Add a tool call to the display."""
-        self.tool_calls.append({"name": name, "status": status, "frame": 0})
+        # Format tool name nicely
+        display_name = name.replace("_", " ").title()
+        self.tool_calls.append({"name": name, "display": display_name, "status": status, "frame": 0})
         self.add_class("visible")
-        self._render()
+        self._update_display()
         if not self.timer:
-            self.timer = self.set_interval(0.1, self._animate)
+            self.timer = self.set_interval(0.06, self._animate)  # Faster animation
     
     def complete_tool_call(self, name: str):
         """Mark a tool call as complete."""
@@ -587,7 +655,7 @@ class ToolCallDisplay(Static):
             if tc["name"] == name and tc["status"] == "running":
                 tc["status"] = "complete"
                 break
-        self._render()
+        self._update_display()
     
     def clear(self):
         """Clear all tool calls."""
@@ -604,20 +672,21 @@ class ToolCallDisplay(Static):
         for tc in self.tool_calls:
             if tc["status"] == "running":
                 tc["frame"] = self.frame
-        self._render()
+        self._update_display()
     
-    def _render(self):
-        """Render the tool calls display."""
+    def _update_display(self):
+        """Update the tool calls display content."""
         if not self.tool_calls:
+            self.update("")
             return
         
         lines = []
         for tc in self.tool_calls:
             if tc["status"] == "running":
                 spinner = TOOL_SPINNER_FRAMES[tc["frame"] % len(TOOL_SPINNER_FRAMES)]
-                lines.append(f"  [cyan]{spinner}[/cyan] [bold]{tc['name']}[/bold] [dim]executing...[/dim]")
+                lines.append(f"  [bold #60a5fa]{spinner}[/bold #60a5fa] [bold white]{tc['display']}[/bold white] [dim italic]running...[/dim italic]")
             else:
-                lines.append(f"  [green][ok][/green] [bold]{tc['name']}[/bold] [green]done[/green]")
+                lines.append(f"  [bold #22c55e][OK][/bold #22c55e] [bold white]{tc['display']}[/bold white] [#22c55e]done[/#22c55e]")
         
         self.update(Text.from_markup("\n".join(lines)))
 
@@ -640,7 +709,8 @@ class SigmaIndicator(Static):
         self.mode = mode if active else "idle"
         if active and not self.timer:
             self.frame = 0
-            interval = 0.08 if mode == "thinking" else 0.12
+            # Fast smooth animation - 0.05s for thinking, 0.04s for tool calls
+            interval = 0.05 if mode == "thinking" else 0.04
             self.timer = self.set_interval(interval, self._animate)
         elif not active and self.timer:
             self.timer.stop()
@@ -851,59 +921,58 @@ class SigmaApp(App):
     def _show_comprehensive_help(self, chat: ChatLog):
         """Show comprehensive help with examples."""
         help_text = f"""
-[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]
-[bold]                    {SIGMA} SIGMA HELP CENTER                      [/bold]
-[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]
+[bold white on #1e3a8a]                                                                   [/bold white on #1e3a8a]
+[bold white on #1e3a8a]                    {SIGMA}  S I G M A   H E L P   C E N T E R                    [/bold white on #1e3a8a]
+[bold white on #1e3a8a]                                                                   [/bold white on #1e3a8a]
 
-[bold yellow]QUICK START[/bold yellow]
-  Just type naturally! Examples:
-  • "analyze AAPL"           - Full analysis of Apple
-  • "compare NVDA AMD INTC"  - Compare multiple stocks
-  • "is TSLA overvalued?"    - Get AI insights
-  • "market overview"        - See major indices
+[bold #3b82f6]GETTING STARTED[/bold #3b82f6]
+  Type naturally - Sigma understands finance queries:
+  [dim]>>[/dim] analyze AAPL              [dim]Full company analysis[/dim]
+  [dim]>>[/dim] compare NVDA AMD INTC     [dim]Side-by-side comparison[/dim]
+  [dim]>>[/dim] technical analysis SPY    [dim]RSI, MACD, Bollinger Bands[/dim]
+  [dim]>>[/dim] plot TSLA chart           [dim]Generate price chart[/dim]
+  [dim]>>[/dim] backtest SMA on AAPL      [dim]Strategy simulation[/dim]
 
-[bold yellow]COMMANDS[/bold yellow]
-  [cyan]/help[/cyan]              This help screen
-  [cyan]/clear[/cyan]             Clear chat history
-  [cyan]/keys[/cyan]              Configure API keys
-  [cyan]/models[/cyan]            Show available models
-  [cyan]/status[/cyan]            Current configuration
-  [cyan]/backtest[/cyan]          Show backtest strategies
-  [cyan]/provider <name>[/cyan]   Switch AI provider
-  [cyan]/model <name>[/cyan]      Switch model
-  [cyan]/setkey <p> <k>[/cyan]    Set API key
-  [cyan]/tickers[/cyan]           Popular tickers list
+[bold #3b82f6]COMMANDS[/bold #3b82f6]
+  [cyan]/help[/cyan]                 Full help documentation
+  [cyan]/clear[/cyan]                Clear conversation history
+  [cyan]/keys[/cyan]                 API key configuration
+  [cyan]/models[/cyan]               Available AI models
+  [cyan]/status[/cyan]               Current settings
+  [cyan]/backtest[/cyan]             Backtesting strategies
+  [cyan]/provider[/cyan] [dim]<name>[/dim]      Switch provider (google, openai, anthropic)
+  [cyan]/model[/cyan] [dim]<name>[/dim]         Switch model
+  [cyan]/setkey[/cyan] [dim]<p> <key>[/dim]    Set API key
+  [cyan]/tickers[/cyan]              Popular ticker list
 
-[bold yellow]ANALYSIS EXAMPLES[/bold yellow]
-  • "technical analysis of SPY"
-  • "fundamentals of MSFT"
-  • "insider trading for AAPL"
-  • "analyst recommendations for NVDA"
-  • "sector performance"
+[bold #3b82f6]ANALYSIS CAPABILITIES[/bold #3b82f6]
+  [bold]Fundamental[/bold]    financials, earnings, valuation, balance sheet
+  [bold]Technical[/bold]      RSI, MACD, SMA/EMA, Bollinger, support/resistance
+  [bold]Sentiment[/bold]      analyst ratings, insider trades, institutional holdings
+  [bold]Market[/bold]         sector performance, economic indicators, market news
+  [bold]Charts[/bold]         candlestick, line, technical, comparison charts
 
-[bold yellow]BACKTESTING[/bold yellow]
-  • "backtest SMA crossover on AAPL"
-  • "backtest RSI strategy on SPY"
-  • "backtest MACD on NVDA"
-  Strategies: sma_crossover, rsi, macd, bollinger, momentum, breakout
+[bold #3b82f6]BACKTEST STRATEGIES[/bold #3b82f6]
+  [bold]sma_crossover[/bold]   SMA 20/50 crossover signals
+  [bold]rsi[/bold]             RSI mean reversion (30/70)
+  [bold]macd[/bold]            MACD momentum signals
+  [bold]bollinger[/bold]       Bollinger Bands bounce
+  [bold]momentum[/bold]        Dual momentum strategy
+  [bold]breakout[/bold]        Price breakout signals
 
-[bold yellow]KEYBOARD SHORTCUTS[/bold yellow]
-  [bold]Tab[/bold]      Autocomplete suggestion
-  [bold]Ctrl+L[/bold]   Clear chat
-  [bold]Ctrl+M[/bold]   Show models
-  [bold]Ctrl+H[/bold]   Toggle quick help
-  [bold]Ctrl+P[/bold]   Command palette
-  [bold]Esc[/bold]      Cancel operation
+[bold #3b82f6]KEYBOARD[/bold #3b82f6]
+  [bold]Tab[/bold]        Smart autocomplete
+  [bold]Ctrl+L[/bold]     Clear chat
+  [bold]Ctrl+M[/bold]     Models menu
+  [bold]Ctrl+H[/bold]     Quick help
+  [bold]Ctrl+P[/bold]     Command palette
 
-[bold yellow]TIPS[/bold yellow]
-  • Type [cyan]$AAPL[/cyan] or [cyan]AAPL[/cyan] - tickers auto-detected
-  • Use Tab for smart autocomplete
-  • Detected tickers shown next to input
+[dim]Returns: [/dim][#22c55e]+green = gain[/#22c55e][dim], [/dim][#ef4444]-red = loss[/#ef4444][dim] | Tickers auto-detected from input[/dim]
 """
         chat.write(Panel(
             Text.from_markup(help_text),
             title=f"[bold cyan]{SIGMA} Help[/bold cyan]",
-            border_style="cyan",
+            border_style="#3b82f6",
             padding=(0, 1),
         ))
     
@@ -975,7 +1044,7 @@ class SigmaApp(App):
         table.add_row("Model", self.settings.default_model, "")
         table.add_row("", "", "")
         
-        # LLM Keys
+        # LLM Keys - show FULL keys (no masking)
         llm_keys = [
             ("Google", self.settings.google_api_key, "google"),
             ("OpenAI", self.settings.openai_api_key, "openai"),
@@ -985,23 +1054,24 @@ class SigmaApp(App):
         ]
         for name, key, prov in llm_keys:
             if key:
-                masked = key[:8] + "..." + key[-4:] if len(key) > 12 else "***"
-                status = "[green][ok][/green]"
+                # Show full key - no masking
+                display_key = key
+                status = "[green]OK[/green]"
             else:
-                masked = "[dim]not set[/dim]"
+                display_key = "[dim]not set[/dim]"
                 status = "[dim]--[/dim]"
             
             # Highlight active provider
             if prov == provider:
                 name = f"[bold cyan]{name}[/bold cyan]"
-            table.add_row(f"  {name}", Text.from_markup(masked), Text.from_markup(status))
+            table.add_row(f"  {name}", Text.from_markup(display_key), Text.from_markup(status))
         
         table.add_row("", "", "")
         
-        # Data Keys
+        # Data Keys - show FULL keys
         polygon_key = getattr(self.settings, 'polygon_api_key', None)
         if polygon_key:
-            table.add_row("  Polygon", polygon_key[:8] + "...", Text.from_markup("[green][ok][/green]"))
+            table.add_row("  Polygon", polygon_key, Text.from_markup("[green]OK[/green]"))
         else:
             table.add_row("  Polygon", Text.from_markup("[dim]not set[/dim]"), Text.from_markup("[dim]optional[/dim]"))
         
@@ -1066,9 +1136,8 @@ class SigmaApp(App):
                 # Reload settings
                 self.settings = get_settings()
                 
-                # Show success with masked key
-                masked = key[:6] + "..." + key[-4:] if len(key) > 10 else "***"
-                chat.write_system(f"[green][ok][/green] {SIGMA} Key saved for [bold]{provider}[/bold]: {masked}")
+                # Show success with FULL key (no masking)
+                chat.write_system(f"[green]OK[/green] {SIGMA} Key saved for [bold]{provider}[/bold]: {key}")
                 
                 # Auto-switch to this provider if it's an LLM provider and we don't have an LLM
                 llm_providers = ["google", "openai", "anthropic", "groq", "xai"]

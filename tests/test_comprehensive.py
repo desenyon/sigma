@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive test suite for Sigma v3.4.0.
+"""Comprehensive test suite for Sigma v3.4.1.
 
 Tests all core functionality including:
 - Configuration and settings
@@ -24,14 +24,14 @@ class TestVersion(unittest.TestCase):
     """Test that version is consistent across all files."""
     
     def test_version_consistency(self):
-        """All files should have version 3.4.0."""
+        """All files should have version 3.4.1."""
         from sigma import __version__
         from sigma.app import __version__ as app_version
         from sigma.config import __version__ as config_version
         from sigma.cli import __version__ as cli_version
         from sigma.setup import __version__ as setup_version
         
-        expected = "3.4.0"
+        expected = "3.4.1"
         self.assertEqual(__version__, expected, "sigma/__init__.py version mismatch")
         self.assertEqual(app_version, expected, "sigma/app.py version mismatch")
         self.assertEqual(config_version, expected, "sigma/config.py version mismatch")
@@ -100,8 +100,10 @@ class TestConfig(unittest.TestCase):
         from sigma.config import AVAILABLE_MODELS
         
         deprecated = [
-            "gemini-3-flash-preview",  # Wrong model name
-            "o1", "o1-mini",  # Deprecated OpenAI reasoning models
+            "gemini-2.0-flash",        # Old Gemini 2.0
+            "gemini-1.5-pro",          # Old Gemini 1.5
+            "gpt-4o", "gpt-4o-mini",   # Old GPT-4 models
+            "o1", "o1-mini",           # Deprecated OpenAI reasoning models
             "claude-3-opus-20240229",  # Older Claude model
         ]
         
@@ -315,7 +317,7 @@ class TestAppComponents(unittest.TestCase):
         
         self.assertNotIn("Native macOS", WELCOME_BANNER)
         self.assertNotIn("native macOS", WELCOME_BANNER)
-        self.assertIn("3.4.0", WELCOME_BANNER)
+        self.assertIn("3.4.1", WELCOME_BANNER)
     
     def test_suggestions_list(self):
         """SUGGESTIONS should have comprehensive entries."""
@@ -399,7 +401,7 @@ class TestImports(unittest.TestCase):
             __version__
         )
         
-        self.assertEqual(__version__, "3.4.0")
+        self.assertEqual(__version__, "3.4.1")
         self.assertTrue(callable(launch))
         self.assertTrue(callable(save_api_key))
 
@@ -469,7 +471,7 @@ def run_interactive_tests():
 if __name__ == "__main__":
     # Run unit tests
     print("=" * 60)
-    print("SIGMA v3.4.0 - COMPREHENSIVE TEST SUITE")
+    print("SIGMA v3.4.1 - COMPREHENSIVE TEST SUITE")
     print("=" * 60)
     
     # Create test suite

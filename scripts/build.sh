@@ -7,7 +7,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 echo "========================================"
-echo "  Sigma v3.4.0 Build Script"
+echo "  Sigma v3.4.1 Build Script"
 echo "========================================"
 echo ""
 

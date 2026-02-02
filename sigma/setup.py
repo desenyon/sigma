@@ -1,4 +1,4 @@
-"""Sigma v3.4.0 - Setup Wizard."""
+"""Sigma v3.4.1 - Setup Wizard."""
 
 import os
 import sys
@@ -25,7 +25,7 @@ from .config import (
 )
 
 
-__version__ = "3.4.0"
+__version__ = "3.4.1"
 SIGMA = "σ"
 console = Console()
 
@@ -38,7 +38,7 @@ BANNER = """
 [bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
 [bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
 
-[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.4.0[/dim]
+[bold cyan]σ Finance Research Agent[/bold cyan] [dim]- Setup Wizard v3.4.1[/dim]
 """
 
 
@@ -185,8 +185,8 @@ class SetupWizard:
         existing = getattr(self.settings, key_attr, None)
         
         if existing:
-            masked = f"{existing[:8]}...{existing[-4:]}"
-            console.print(f"[dim]Existing key: {masked}[/dim]")
+            # Show full key - no masking
+            console.print(f"[dim]Existing key: {existing}[/dim]")
             if not Confirm.ask("Replace?", default=False):
                 console.print(f"[cyan]{SIGMA}[/cyan] Keeping existing key")
                 return
@@ -265,7 +265,7 @@ class SetupWizard:
         if self.settings.default_provider != LLMProvider.OLLAMA:
             ollama_running, ollama_host = detect_ollama()
             if ollama_running and ollama_host:
-                console.print(f"[green][ok][/green] Ollama detected at {ollama_host}")
+                console.print(f"[green]OK[/green] Ollama detected at {ollama_host}")
                 if Confirm.ask("Enable Ollama as local fallback?", default=True):
                     save_setting("ollama_host", ollama_host)
                     console.print(f"[cyan]{SIGMA}[/cyan] Ollama enabled")
@@ -280,7 +280,7 @@ class SetupWizard:
         lean_installed, lean_cli, lean_dir = detect_lean_installation()
         
         if lean_installed:
-            console.print(f"[green][ok][/green] LEAN/QuantConnect detected!")
+            console.print(f"[green]OK[/green] LEAN/QuantConnect detected!")
             if lean_cli:
                 console.print(f"  [dim]CLI: {lean_cli}[/dim]")
             if lean_dir:
@@ -316,7 +316,7 @@ class SetupWizard:
                     success, message = install_lean_cli_sync()
                 
                 if success:
-                    console.print(f"[green][ok][/green] {message}")
+                    console.print(f"[green]OK[/green] {message}")
                     save_setting("lean_enabled", "true")
                     save_setting("lean_cli_path", "lean")
                     

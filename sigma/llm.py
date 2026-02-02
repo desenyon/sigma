@@ -47,14 +47,14 @@ class RateLimiter:
         self.request_count += 1
 
 
-# Global rate limiters per provider
+# Global rate limiters per provider (generous limits to avoid rate limiting)
 _rate_limiters = {
-    "google": RateLimiter(requests_per_minute=15, min_interval=0.5),
-    "openai": RateLimiter(requests_per_minute=20, min_interval=0.3),
-    "anthropic": RateLimiter(requests_per_minute=15, min_interval=0.5),
-    "groq": RateLimiter(requests_per_minute=30, min_interval=0.2),
-    "xai": RateLimiter(requests_per_minute=10, min_interval=1.0),
-    "ollama": RateLimiter(requests_per_minute=60, min_interval=0.1),  # Local, can be faster
+    "google": RateLimiter(requests_per_minute=60, min_interval=0.2),      # Gemini free tier is generous
+    "openai": RateLimiter(requests_per_minute=60, min_interval=0.2),      # GPT-5 tier 1+
+    "anthropic": RateLimiter(requests_per_minute=40, min_interval=0.3),   # Claude standard
+    "groq": RateLimiter(requests_per_minute=30, min_interval=0.2),        # Groq free tier
+    "xai": RateLimiter(requests_per_minute=30, min_interval=0.3),         # Grok standard
+    "ollama": RateLimiter(requests_per_minute=120, min_interval=0.05),    # Local, no limits
 }
 
 

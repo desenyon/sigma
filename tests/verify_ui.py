@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify UI rendering and data fetching for Sigma v3.4.0."""
+"""Verify UI rendering and data fetching for Sigma v3.4.1."""
 
 import re
 import sys
@@ -16,7 +16,7 @@ from sigma.config import ErrorCode, SigmaError, AVAILABLE_MODELS, __version__
 from sigma.tools import get_stock_quote, technical_analysis, get_market_overview, execute_tool
 
 print("=" * 60)
-print("SIGMA v3.4.0 - FULL VERIFICATION")
+print("SIGMA v3.4.1 - FULL VERIFICATION")
 print("=" * 60)
 
 # Check no emojis in key strings

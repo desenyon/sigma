@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.4.0-blue.svg" alt="Version 3.4.0"/>
+  <img src="https://img.shields.io/badge/version-3.4.1-blue.svg" alt="Version 3.4.1"/>
   <img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python 3.11+"/>
   <img src="https://img.shields.io/badge/platform-cross--platform-lightgrey.svg" alt="Cross Platform"/>
   <img src="https://img.shields.io/badge/AI-Multi--Provider-purple.svg" alt="Multi-Provider AI"/>
@@ -168,7 +168,15 @@ Switch between providers on the fly. Use free tiers or bring your own keys.
 
 ## Changelog
 
-### v3.4.0 (Current)
+### v3.4.1 (Current)
+
+- [X] **Color-Coded Returns** — Green/red highlighting for gains/losses
+- [X] **6 New Analysis Tools** — Valuation, risk, earnings, dividends, options, peer comparison
+- [X] **Revamped Help Section** — Beautiful organized /help with 29 tools
+- [X] **ASCII Spinner** — Clean terminal-friendly animation
+- [X] **No Emojis** — Professional text-only interface
+
+### v3.4.0
 
 - [X] **Improved API Key Management** — Beautiful \`/keys\` interface with URLs
 - [X] **Polygon.io Integration** — Real-time quotes, aggregates, news

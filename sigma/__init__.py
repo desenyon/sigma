@@ -1,5 +1,5 @@
 """
-Sigma v3.4.0 - Finance Research Agent
+Sigma v3.4.1 - Finance Research Agent
 
 An elite finance research agent combining:
 - Multi-provider AI (Google Gemini, OpenAI, Anthropic, Groq, xAI, Ollama)
@@ -12,7 +12,7 @@ An elite finance research agent combining:
 - Monitoring, alerts, and watchlists
 """
 
-__version__ = "3.4.0"
+__version__ = "3.4.1"
 __author__ = "Sigma Team"
 
 # Core functionality

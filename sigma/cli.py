@@ -1,4 +1,4 @@
-"""CLI entry point for Sigma v3.4.0."""
+"""CLI entry point for Sigma v3.4.1."""
 
 import argparse
 import json
@@ -17,7 +17,7 @@ from .config import (
 )
 
 
-__version__ = "3.4.0"
+__version__ = "3.4.1"
 
 console = Console()
 
@@ -32,7 +32,7 @@ def show_banner():
 [bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
 [bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
 
-[dim]v3.4.0[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
+[dim]v3.4.1[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
 """
     console.print(banner)
 
@@ -41,7 +41,7 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="sigma",
-        description="Sigma v3.4.0 - Finance Research Agent",
+        description="Sigma v3.4.1 - Finance Research Agent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -148,7 +148,7 @@ Examples:
         mark_first_run_complete()  # Always mark complete to not ask again
         
         if result:
-            console.print("\n[bold green][ok] Setup complete![/bold green]")
+            console.print("\n[bold green]Setup complete![/bold green]")
             console.print("[dim]Launching Sigma...[/dim]\n")
             import time
             time.sleep(1)  # Brief pause for user to see message

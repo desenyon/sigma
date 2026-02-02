@@ -963,6 +963,466 @@ def search_earnings_transcripts(company: str, num_results: int = 3) -> dict:
 
 
 # ============================================================================
+# CHART GENERATION TOOLS
+# ============================================================================
+
+def generate_stock_chart(symbol: str, period: str = "6mo", chart_type: str = "candlestick", 
+                         show_volume: bool = True, show_indicators: bool = True) -> dict:
+    """Generate a stock chart and save it to file."""
+    try:
+        from .charts import create_candlestick_chart, create_line_chart, create_technical_chart
+        
+        ticker = yf.Ticker(symbol.upper())
+        data = ticker.history(period=period)
+        
+        if data.empty:
+            return {"error": f"No data found for {symbol}", "symbol": symbol}
+        
+        # Generate chart based on type
+        if chart_type == "candlestick":
+            chart_path = create_candlestick_chart(
+                symbol=symbol,
+                data=data,
+                show_volume=show_volume,
+                show_sma=show_indicators
+            )
+        elif chart_type == "line":
+            chart_path = create_line_chart(
+                symbol=symbol,
+                data=data,
+                show_volume=show_volume
+            )
+        elif chart_type == "technical":
+            chart_path = create_technical_chart(
+                symbol=symbol,
+                data=data,
+                indicators=["rsi", "macd"] if show_indicators else []
+            )
+        else:
+            chart_path = create_candlestick_chart(symbol=symbol, data=data)
+        
+        return {
+            "symbol": symbol.upper(),
+            "chart_type": chart_type,
+            "period": period,
+            "chart_path": chart_path,
+            "message": f"Chart generated and saved to: {chart_path}",
+            "data_points": len(data),
+            "start_date": str(data.index[0].date()),
+            "end_date": str(data.index[-1].date()),
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
+def generate_comparison_chart(symbols: list, period: str = "1y", normalize: bool = True) -> dict:
+    """Generate a comparison chart for multiple stocks."""
+    try:
+        from .charts import create_comparison_chart
+        
+        data_dict = {}
+        for symbol in symbols:
+            ticker = yf.Ticker(symbol.upper())
+            data = ticker.history(period=period)
+            if not data.empty:
+                data_dict[symbol.upper()] = data
+        
+        if not data_dict:
+            return {"error": "No data found for any symbols", "symbols": symbols}
+        
+        chart_path = create_comparison_chart(
+            symbols=[s.upper() for s in symbols],
+            data_dict=data_dict,
+            normalize=normalize
+        )
+        
+        return {
+            "symbols": list(data_dict.keys()),
+            "period": period,
+            "normalized": normalize,
+            "chart_path": chart_path,
+            "message": f"Comparison chart saved to: {chart_path}"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================================
+# ADVANCED ANALYSIS TOOLS
+# ============================================================================
+
+def get_valuation_metrics(symbol: str) -> dict:
+    """Get comprehensive valuation metrics for a stock."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        info = ticker.info
+        
+        # Calculate valuation ratios
+        pe_ratio = info.get("trailingPE", None)
+        forward_pe = info.get("forwardPE", None)
+        peg_ratio = info.get("pegRatio", None)
+        pb_ratio = info.get("priceToBook", None)
+        ps_ratio = info.get("priceToSalesTrailing12Months", None)
+        ev_ebitda = info.get("enterpriseToEbitda", None)
+        ev_revenue = info.get("enterpriseToRevenue", None)
+        
+        # Get growth metrics
+        earnings_growth = info.get("earningsGrowth", None)
+        revenue_growth = info.get("revenueGrowth", None)
+        
+        # Get profitability
+        profit_margin = info.get("profitMargins", None)
+        operating_margin = info.get("operatingMargins", None)
+        roe = info.get("returnOnEquity", None)
+        roa = info.get("returnOnAssets", None)
+        
+        # Determine valuation assessment
+        assessment = "FAIR"
+        if pe_ratio and forward_pe:
+            if pe_ratio > 30 and forward_pe > 25:
+                assessment = "EXPENSIVE"
+            elif pe_ratio < 15 and forward_pe < 12:
+                assessment = "CHEAP"
+        
+        return {
+            "symbol": symbol.upper(),
+            "name": info.get("shortName", symbol),
+            "valuation": {
+                "pe_ratio": round(pe_ratio, 2) if pe_ratio else "N/A",
+                "forward_pe": round(forward_pe, 2) if forward_pe else "N/A",
+                "peg_ratio": round(peg_ratio, 2) if peg_ratio else "N/A",
+                "price_to_book": round(pb_ratio, 2) if pb_ratio else "N/A",
+                "price_to_sales": round(ps_ratio, 2) if ps_ratio else "N/A",
+                "ev_to_ebitda": round(ev_ebitda, 2) if ev_ebitda else "N/A",
+                "ev_to_revenue": round(ev_revenue, 2) if ev_revenue else "N/A",
+            },
+            "growth": {
+                "earnings_growth": f"{earnings_growth*100:.1f}%" if earnings_growth else "N/A",
+                "revenue_growth": f"{revenue_growth*100:.1f}%" if revenue_growth else "N/A",
+            },
+            "profitability": {
+                "profit_margin": f"{profit_margin*100:.1f}%" if profit_margin else "N/A",
+                "operating_margin": f"{operating_margin*100:.1f}%" if operating_margin else "N/A",
+                "return_on_equity": f"{roe*100:.1f}%" if roe else "N/A",
+                "return_on_assets": f"{roa*100:.1f}%" if roa else "N/A",
+            },
+            "assessment": assessment,
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
+def get_risk_metrics(symbol: str, period: str = "1y") -> dict:
+    """Calculate comprehensive risk metrics for a stock."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        hist = ticker.history(period=period)
+        
+        if hist.empty or len(hist) < 30:
+            return {"error": "Insufficient data for risk analysis", "symbol": symbol}
+        
+        # Calculate daily returns
+        returns = hist["Close"].pct_change().dropna()
+        
+        # Basic risk metrics
+        volatility = returns.std() * np.sqrt(252) * 100
+        
+        # Value at Risk (VaR) - 95% confidence
+        var_95 = np.percentile(returns, 5) * 100
+        
+        # Conditional VaR (Expected Shortfall)
+        cvar_95 = returns[returns <= np.percentile(returns, 5)].mean() * 100
+        
+        # Maximum Drawdown
+        cumulative = (1 + returns).cumprod()
+        peak = cumulative.cummax()
+        drawdown = (cumulative - peak) / peak
+        max_drawdown = drawdown.min() * 100
+        
+        # Sharpe Ratio (assuming 0% risk-free rate)
+        sharpe = (returns.mean() * 252) / (returns.std() * np.sqrt(252))
+        
+        # Sortino Ratio
+        negative_returns = returns[returns < 0]
+        downside_std = negative_returns.std() * np.sqrt(252)
+        sortino = (returns.mean() * 252) / downside_std if downside_std > 0 else 0
+        
+        # Beta calculation vs SPY
+        try:
+            spy = yf.Ticker("SPY")
+            spy_hist = spy.history(period=period)
+            spy_returns = spy_hist["Close"].pct_change().dropna()
+            
+            # Align dates
+            common_dates = returns.index.intersection(spy_returns.index)
+            if len(common_dates) > 30:
+                stock_r = returns.loc[common_dates]
+                spy_r = spy_returns.loc[common_dates]
+                
+                covariance = np.cov(stock_r, spy_r)[0, 1]
+                spy_variance = np.var(spy_r)
+                beta = covariance / spy_variance if spy_variance > 0 else 1.0
+                
+                # Alpha (annualized)
+                alpha = (returns.mean() * 252) - (beta * spy_returns.mean() * 252)
+            else:
+                beta = 1.0
+                alpha = 0
+        except:
+            beta = 1.0
+            alpha = 0
+        
+        # Risk assessment
+        risk_level = "MODERATE"
+        if volatility > 40 or abs(max_drawdown) > 30:
+            risk_level = "HIGH"
+        elif volatility < 20 and abs(max_drawdown) < 15:
+            risk_level = "LOW"
+        
+        return {
+            "symbol": symbol.upper(),
+            "period": period,
+            "volatility": {
+                "annualized": f"{volatility:.2f}%",
+                "daily": f"{returns.std()*100:.3f}%",
+            },
+            "drawdown": {
+                "max_drawdown": f"{max_drawdown:.2f}%",
+                "current_drawdown": f"{drawdown.iloc[-1]*100:.2f}%",
+            },
+            "value_at_risk": {
+                "var_95": f"{var_95:.2f}%",
+                "cvar_95": f"{cvar_95:.2f}%",
+            },
+            "ratios": {
+                "sharpe": f"{sharpe:.2f}",
+                "sortino": f"{sortino:.2f}",
+                "beta": f"{beta:.2f}",
+                "alpha": f"{alpha*100:.2f}%",
+            },
+            "risk_level": risk_level,
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
+def get_earnings_analysis(symbol: str) -> dict:
+    """Get detailed earnings analysis including surprises and estimates."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        info = ticker.info
+        
+        # Get earnings dates and history
+        earnings_dates = ticker.earnings_dates
+        earnings_history = ticker.earnings_history if hasattr(ticker, 'earnings_history') else None
+        
+        # Build earnings data
+        upcoming = None
+        if earnings_dates is not None and not earnings_dates.empty:
+            future_dates = earnings_dates[earnings_dates.index > pd.Timestamp.now()]
+            if not future_dates.empty:
+                next_date = future_dates.index[0]
+                upcoming = {
+                    "date": str(next_date.date()) if hasattr(next_date, 'date') else str(next_date)[:10],
+                    "eps_estimate": future_dates.iloc[0].get("EPS Estimate", "N/A"),
+                    "revenue_estimate": future_dates.iloc[0].get("Revenue Estimate", "N/A"),
+                }
+        
+        # Get quarterly earnings
+        quarterly_earnings = []
+        if hasattr(ticker, 'quarterly_earnings') and ticker.quarterly_earnings is not None:
+            qe = ticker.quarterly_earnings
+            if not qe.empty:
+                for date, row in qe.tail(4).iterrows():
+                    quarterly_earnings.append({
+                        "quarter": str(date),
+                        "revenue": row.get("Revenue", "N/A"),
+                        "earnings": row.get("Earnings", "N/A"),
+                    })
+        
+        return {
+            "symbol": symbol.upper(),
+            "name": info.get("shortName", symbol),
+            "eps_trailing": info.get("trailingEps", "N/A"),
+            "eps_forward": info.get("forwardEps", "N/A"),
+            "pe_ratio": info.get("trailingPE", "N/A"),
+            "forward_pe": info.get("forwardPE", "N/A"),
+            "upcoming_earnings": upcoming,
+            "quarterly_history": quarterly_earnings,
+            "earnings_growth": f"{info.get('earningsGrowth', 0)*100:.1f}%" if info.get('earningsGrowth') else "N/A",
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
+def get_dividend_analysis(symbol: str) -> dict:
+    """Get comprehensive dividend analysis."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        info = ticker.info
+        
+        # Get dividend data
+        div_rate = info.get("dividendRate", 0)
+        div_yield = info.get("dividendYield", 0)
+        payout_ratio = info.get("payoutRatio", 0)
+        ex_div_date = info.get("exDividendDate")
+        
+        # Get dividend history
+        dividends = ticker.dividends
+        div_history = []
+        if dividends is not None and not dividends.empty:
+            for dt, amount in dividends.tail(8).items():
+                date_str = str(dt.date()) if hasattr(dt, 'date') else str(dt)[:10]  # type: ignore[union-attr]
+                div_history.append({
+                    "date": date_str,
+                    "amount": f"${amount:.4f}",
+                })
+        
+        # Calculate dividend growth
+        if len(dividends) >= 8:
+            recent_divs = dividends.tail(4).sum()
+            older_divs = dividends.tail(8).head(4).sum()
+            div_growth = ((recent_divs / older_divs) - 1) * 100 if older_divs > 0 else 0
+        else:
+            div_growth = None
+        
+        return {
+            "symbol": symbol.upper(),
+            "name": info.get("shortName", symbol),
+            "dividend_rate": f"${div_rate:.2f}" if div_rate else "N/A",
+            "dividend_yield": f"{div_yield*100:.2f}%" if div_yield else "N/A",
+            "payout_ratio": f"{payout_ratio*100:.1f}%" if payout_ratio else "N/A",
+            "ex_dividend_date": str(datetime.fromtimestamp(ex_div_date).date()) if ex_div_date else "N/A",
+            "annual_dividend": f"${div_rate:.2f}" if div_rate else "N/A",
+            "dividend_growth_yoy": f"{div_growth:.1f}%" if div_growth else "N/A",
+            "history": div_history,
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
+def get_options_summary(symbol: str) -> dict:
+    """Get options chain summary with key metrics."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        
+        # Get expiration dates
+        expirations = ticker.options
+        if not expirations:
+            return {"error": "No options available", "symbol": symbol}
+        
+        # Get nearest expiration
+        nearest_exp = expirations[0]
+        opt_chain = ticker.option_chain(nearest_exp)
+        
+        calls = opt_chain.calls
+        puts = opt_chain.puts
+        
+        # Calculate put/call ratio
+        total_call_volume = calls["volume"].sum() if "volume" in calls else 0
+        total_put_volume = puts["volume"].sum() if "volume" in puts else 0
+        pc_ratio = total_put_volume / total_call_volume if total_call_volume > 0 else 0
+        
+        # Get ATM options
+        current_price = ticker.info.get("regularMarketPrice", 0)
+        
+        atm_call = calls.iloc[(calls["strike"] - current_price).abs().argsort()[:1]]
+        atm_put = puts.iloc[(puts["strike"] - current_price).abs().argsort()[:1]]
+        
+        # Implied volatility
+        atm_call_iv = atm_call["impliedVolatility"].values[0] if not atm_call.empty else 0
+        atm_put_iv = atm_put["impliedVolatility"].values[0] if not atm_put.empty else 0
+        avg_iv = (atm_call_iv + atm_put_iv) / 2
+        
+        return {
+            "symbol": symbol.upper(),
+            "current_price": f"${current_price:.2f}",
+            "expirations_available": len(expirations),
+            "nearest_expiration": nearest_exp,
+            "put_call_ratio": f"{pc_ratio:.2f}",
+            "implied_volatility": f"{avg_iv*100:.1f}%",
+            "call_volume": int(total_call_volume) if total_call_volume else 0,
+            "put_volume": int(total_put_volume) if total_put_volume else 0,
+            "atm_call": {
+                "strike": float(atm_call["strike"].values[0]) if not atm_call.empty else 0,
+                "bid": float(atm_call["bid"].values[0]) if not atm_call.empty else 0,
+                "ask": float(atm_call["ask"].values[0]) if not atm_call.empty else 0,
+                "iv": f"{atm_call_iv*100:.1f}%",
+            },
+            "atm_put": {
+                "strike": float(atm_put["strike"].values[0]) if not atm_put.empty else 0,
+                "bid": float(atm_put["bid"].values[0]) if not atm_put.empty else 0,
+                "ask": float(atm_put["ask"].values[0]) if not atm_put.empty else 0,
+                "iv": f"{atm_put_iv*100:.1f}%",
+            },
+            "sentiment": "BEARISH" if pc_ratio > 1.2 else ("BULLISH" if pc_ratio < 0.7 else "NEUTRAL"),
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
+def get_peer_comparison(symbol: str) -> dict:
+    """Compare a stock with its industry peers."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        info = ticker.info
+        
+        # Get sector and find peers
+        sector = info.get("sector", "")
+        industry = info.get("industry", "")
+        
+        # Define peer groups by industry
+        tech_peers = ["AAPL", "MSFT", "GOOGL", "META", "AMZN"]
+        semi_peers = ["NVDA", "AMD", "INTC", "AVGO", "QCOM"]
+        finance_peers = ["JPM", "BAC", "GS", "MS", "C"]
+        healthcare_peers = ["JNJ", "PFE", "UNH", "MRK", "ABBV"]
+        
+        # Select peer group
+        symbol_upper = symbol.upper()
+        if symbol_upper in tech_peers or "Technology" in sector:
+            peers = [p for p in tech_peers if p != symbol_upper][:4]
+        elif symbol_upper in semi_peers or "Semiconductor" in industry:
+            peers = [p for p in semi_peers if p != symbol_upper][:4]
+        elif symbol_upper in finance_peers or "Financial" in sector:
+            peers = [p for p in finance_peers if p != symbol_upper][:4]
+        elif symbol_upper in healthcare_peers or "Healthcare" in sector:
+            peers = [p for p in healthcare_peers if p != symbol_upper][:4]
+        else:
+            peers = []
+        
+        # Get metrics for target and peers
+        all_symbols = [symbol_upper] + peers
+        comparison = []
+        
+        for sym in all_symbols:
+            try:
+                t = yf.Ticker(sym)
+                i = t.info
+                comparison.append({
+                    "symbol": sym,
+                    "name": i.get("shortName", sym),
+                    "price": i.get("regularMarketPrice", 0),
+                    "market_cap": i.get("marketCap", 0),
+                    "pe_ratio": round(i.get("trailingPE", 0), 2) if i.get("trailingPE") else "N/A",
+                    "pb_ratio": round(i.get("priceToBook", 0), 2) if i.get("priceToBook") else "N/A",
+                    "dividend_yield": f"{i.get('dividendYield', 0)*100:.2f}%" if i.get("dividendYield") else "N/A",
+                    "profit_margin": f"{i.get('profitMargins', 0)*100:.1f}%" if i.get("profitMargins") else "N/A",
+                })
+            except:
+                continue
+        
+        return {
+            "target": symbol.upper(),
+            "sector": sector,
+            "industry": industry,
+            "peer_count": len(peers),
+            "comparison": comparison,
+        }
+    except Exception as e:
+        return {"error": str(e), "symbol": symbol}
+
+
+# ============================================================================
 # TOOL DEFINITIONS FOR LLM
 # ============================================================================
 
@@ -1274,6 +1734,127 @@ TOOLS = [
             }
         }
     },
+    # Chart generation tools
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_stock_chart",
+            "description": "Generate a stock price chart (candlestick, line, or technical) with optional indicators. Returns file path where chart is saved.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol (e.g., AAPL, NVDA)"},
+                    "period": {"type": "string", "description": "Time period: 1mo, 3mo, 6mo, 1y, 2y, 5y", "default": "6mo"},
+                    "chart_type": {"type": "string", "enum": ["candlestick", "line", "technical"], "description": "Type of chart", "default": "candlestick"},
+                    "show_volume": {"type": "boolean", "description": "Show volume bars", "default": True},
+                    "show_indicators": {"type": "boolean", "description": "Show moving averages/indicators", "default": True}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_comparison_chart",
+            "description": "Generate a comparison chart showing multiple stocks' performance over time",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbols": {"type": "array", "items": {"type": "string"}, "description": "List of stock symbols to compare"},
+                    "period": {"type": "string", "description": "Time period for comparison", "default": "1y"},
+                    "normalize": {"type": "boolean", "description": "Normalize to percentage returns", "default": True}
+                },
+                "required": ["symbols"]
+            }
+        }
+    },
+    # Advanced analysis tools
+    {
+        "type": "function",
+        "function": {
+            "name": "get_valuation_metrics",
+            "description": "Get comprehensive valuation metrics (P/E, P/B, PEG, EV/EBITDA) with assessment",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_risk_metrics",
+            "description": "Calculate risk metrics: volatility, VaR, max drawdown, Sharpe, Sortino, Beta, Alpha",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"},
+                    "period": {"type": "string", "description": "Analysis period (1y, 2y, 5y)", "default": "1y"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_earnings_analysis",
+            "description": "Get earnings analysis: EPS, upcoming dates, quarterly history, growth",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_dividend_analysis",
+            "description": "Get dividend analysis: yield, payout ratio, ex-date, dividend history and growth",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_options_summary",
+            "description": "Get options chain summary: put/call ratio, implied volatility, ATM options",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_peer_comparison",
+            "description": "Compare a stock with its industry peers on key metrics",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "Stock ticker symbol"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
 ]
 
 
@@ -1303,6 +1884,16 @@ TOOL_FUNCTIONS = {
     "polygon_get_aggregates": polygon_get_aggregates,
     "polygon_get_ticker_news": polygon_get_ticker_news,
     "polygon_market_status": polygon_market_status,
+    # Chart generation
+    "generate_stock_chart": generate_stock_chart,
+    "generate_comparison_chart": generate_comparison_chart,
+    # Advanced analysis
+    "get_valuation_metrics": get_valuation_metrics,
+    "get_risk_metrics": get_risk_metrics,
+    "get_earnings_analysis": get_earnings_analysis,
+    "get_dividend_analysis": get_dividend_analysis,
+    "get_options_summary": get_options_summary,
+    "get_peer_comparison": get_peer_comparison,
 }
 
 

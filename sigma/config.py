@@ -1,4 +1,4 @@
-"""Configuration management for Sigma v3.4.0."""
+"""Configuration management for Sigma v3.4.1."""
 
 import os
 import shutil
@@ -11,7 +11,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-__version__ = "3.4.0"
+__version__ = "3.4.1"
 
 
 class ErrorCode(IntEnum):
@@ -73,16 +73,19 @@ class LLMProvider(str, Enum):
     OLLAMA = "ollama"
 
 
-# Available models per provider (Feb 2026 - LATEST MODELS ONLY)
+# Available models per provider (Feb 2026 - REAL API NAMES)
 AVAILABLE_MODELS = {
     "google": [
-        "gemini-3-flash",        # Latest fast model
-        "gemini-3-pro",          # Latest capable model
+        "gemini-3-flash-preview",     # Fast multimodal, Pro-level at Flash speed
+        "gemini-3-pro-preview",       # Multimodal reasoning (1M tokens)
+        "gemini-3-pro-image-preview", # Image+text focus (65K tokens)
     ],
     "openai": [
-        "gpt-5",                 # Latest flagship
-        "gpt-5-mini",            # Latest efficient
-        "o3",                    # Latest reasoning
+        "gpt-5",                 # Flagship general/agentic, multimodal (256K)
+        "gpt-5-mini",            # Cost-efficient variant (256K)
+        "gpt-5.2",               # Enterprise knowledge work, advanced reasoning
+        "gpt-5-nano",            # Ultra-cheap/lightweight
+        "o3",                    # Advanced reasoning
         "o3-mini",               # Fast reasoning
     ],
     "anthropic": [
@@ -310,7 +313,7 @@ class Settings(BaseSettings):
     
     # Provider settings
     default_provider: LLMProvider = LLMProvider.GOOGLE
-    default_model: str = Field(default="gemini-3-flash", alias="DEFAULT_MODEL")
+    default_model: str = Field(default="gemini-3-flash-preview", alias="DEFAULT_MODEL")
     
     # LLM API Keys
     google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
@@ -319,8 +322,8 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = Field(default=None, alias="GROQ_API_KEY")
     xai_api_key: Optional[str] = Field(default=None, alias="XAI_API_KEY")
     
-    # Model settings - LATEST MODELS ONLY (Feb 2026)
-    google_model: str = "gemini-3-flash"
+    # Model settings - REAL API NAMES (Feb 2026)
+    google_model: str = "gemini-3-flash-preview"
     openai_model: str = "gpt-5"
     anthropic_model: str = "claude-sonnet-4-20250514"
     groq_model: str = "llama-3.3-70b-versatile"
