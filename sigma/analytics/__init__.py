@@ -34,10 +34,10 @@ class PerformanceAnalytics:
         if n < 2:
             return {}
         
-        # Basic metrics
-        total_return = (1 + returns).prod() - 1
+        # Helper to ensure numeric
+        total_return = float((1 + returns).prod() - 1)  # type: ignore
         cagr = (1 + total_return) ** (periods_per_year / n) - 1
-        volatility = returns.std() * np.sqrt(periods_per_year)
+        volatility = float(returns.std() * np.sqrt(periods_per_year))  # type: ignore
         
         # Downside metrics
         negative_returns = returns[returns < 0]
@@ -98,7 +98,7 @@ class PerformanceAnalytics:
                 alpha = cagr - (risk_free_rate + beta * (aligned.iloc[:, 1].mean() * periods_per_year - risk_free_rate))
                 
                 # R-squared
-                correlation = aligned.corr().iloc[0, 1]
+                correlation = float(aligned.corr().iloc[0, 1])  # type: ignore
                 r_squared = correlation ** 2
                 
                 # Tracking error
@@ -278,7 +278,8 @@ class SeasonalityAnalyzer:
     @staticmethod
     def monthly_seasonality(returns: pd.Series) -> Dict[int, Dict[str, float]]:
         """Analyze month-of-year seasonality."""
-        monthly = returns.groupby(returns.index.month)
+        idx = pd.DatetimeIndex(returns.index)
+        monthly = returns.groupby(idx.month)
         
         result = {}
         for month in range(1, 13):
@@ -299,7 +300,8 @@ class SeasonalityAnalyzer:
     @staticmethod
     def day_of_week_seasonality(returns: pd.Series) -> Dict[int, Dict[str, float]]:
         """Analyze day-of-week seasonality."""
-        daily = returns.groupby(returns.index.dayofweek)
+        idx = pd.DatetimeIndex(returns.index)
+        daily = returns.groupby(idx.dayofweek)
         
         day_names = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Friday"}
         
@@ -329,7 +331,7 @@ class SeasonalityAnalyzer:
         post_returns = []
         
         for event_date in event_dates:
-            event_idx = returns.index.get_indexer([event_date], method='nearest')[0]
+            event_idx = returns.index.get_indexer(pd.Index([event_date]), method='nearest')[0]
             
             if event_idx >= pre_days and event_idx < len(returns) - post_days:
                 pre_ret = returns.iloc[event_idx - pre_days:event_idx].sum()
@@ -387,8 +389,8 @@ class FactorAnalyzer:
         if len(aligned) < 30:
             return {}
         
-        y = aligned["asset"].values
-        X = aligned.drop("asset", axis=1).values
+        y = aligned["asset"].to_numpy(dtype=float)
+        X = aligned.drop("asset", axis=1).to_numpy(dtype=float)
         X = np.column_stack([np.ones(len(X)), X])  # Add intercept
         
         # OLS regression
