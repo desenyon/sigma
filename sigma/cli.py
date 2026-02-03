@@ -1,4 +1,4 @@
-"""CLI entry point for Sigma v3.4.1."""
+"""CLI entry point for Sigma v3.5.0."""
 
 import argparse
 import json
@@ -17,7 +17,7 @@ from .config import (
 )
 
 
-__version__ = "3.4.1"
+__version__ = "3.5.0"
 
 console = Console()
 
@@ -32,7 +32,7 @@ def show_banner():
 [bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
 [bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
 
-[dim]v3.4.1[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
+[dim]v3.5.0[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
 """
     console.print(banner)
 
@@ -41,7 +41,7 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="sigma",
-        description="Sigma v3.4.1 - Finance Research Agent",
+        description="Sigma v3.5.0 - Finance Research Agent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -129,7 +129,7 @@ Examples:
         return 0
     
     if args.setup:
-        from .setup import run_setup
+        from .setup_agent import run_setup
         result = run_setup()
         if result:
             mark_first_run_complete()
@@ -143,7 +143,7 @@ Examples:
     if is_first_run():
         console.print("\n[bold cyan]σ[/bold cyan] [bold]Welcome to Sigma![/bold]")
         console.print("[dim]First time setup detected. Launching setup wizard...[/dim]\n")
-        from .setup import run_setup
+        from .setup_agent import run_setup
         result = run_setup()
         mark_first_run_complete()  # Always mark complete to not ask again
         
@@ -238,15 +238,15 @@ Examples:
 def handle_ask(query: str) -> int:
     """Handle ask command."""
     import asyncio
-    from .llm import get_llm
-    from .tools import TOOLS, execute_tool
+    from .llm import get_router
+    from .tools import get_tools_for_llm, execute_tool
     
     settings = get_settings()
     
-    console.print(f"\n[dim]Using {settings.default_provider.value} / {settings.default_model}[/dim]\n")
+    console.print(f"\n[dim]Using model: {settings.default_model}[/dim]\n")
     
     try:
-        llm = get_llm(settings.default_provider, settings.default_model)
+        router = get_router(settings)
         
         async def run_query():
             """Run the query asynchronously."""
@@ -260,13 +260,15 @@ def handle_ask(query: str) -> int:
                 console.print(f"[dim]Executing: {name}[/dim]")
                 return execute_tool(name, args)
             
-            response = await llm.generate(messages, TOOLS, handle_tool)
+            # Using stream=False for CLI quick question to get full text at once
+            response = await router.chat(messages, tools=get_tools_for_llm(), on_tool_call=handle_tool, stream=False)
             return response
         
         with console.status("[bold blue]σ analyzing...[/bold blue]"):
             response = asyncio.run(run_query())
         
-        console.print(Panel(response, title="[bold cyan]σ Sigma[/bold cyan]"))
+        from rich.markdown import Markdown
+        console.print(Panel(Markdown(str(response)), title="[bold cyan]σ Sigma[/bold cyan]"))
         return 0
     
     except Exception as e:
