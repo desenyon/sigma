@@ -219,7 +219,7 @@ class ComparisonEngine:
             
             # Momentum score (recent performance relative to history)
             if len(returns) > 252:
-                recent_return = (1 + returns.iloc[-63:]).prod() - 1  # 3 months
+                recent_return = float((1 + returns.iloc[-63:]).prod()) - 1  # 3 months  # type: ignore
                 historical_vol = returns.iloc[:-63].std()
                 momentum_score = recent_return / (historical_vol * np.sqrt(63)) if historical_vol > 0 else 0
             else:
@@ -236,7 +236,7 @@ class ComparisonEngine:
             if len(returns) > 252:
                 monthly_returns = returns.resample('M').apply(lambda x: (1 + x).prod() - 1)
                 if len(monthly_returns) > 2:
-                    trend_persistence = monthly_returns.autocorr(lag=1)
+                    trend_persistence = monthly_returns.autocorr(lag=1)  # type: ignore
                 else:
                     trend_persistence = 0
             else:
