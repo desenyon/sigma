@@ -234,8 +234,8 @@ def create_technical_chart(
                 go.Scatter(x=data.index, y=rsi, name="RSI", line=dict(color=SIGMA_THEME["accent"])),
                 row=row, col=1
             )
-            fig.add_hline(y=70, line_dash="dash", line_color=SIGMA_THEME["negative"], row=row, col=1)
-            fig.add_hline(y=30, line_dash="dash", line_color=SIGMA_THEME["positive"], row=row, col=1)
+            fig.add_hline(y=70, line_dash="dash", line_color=SIGMA_THEME["negative"], row=row, col=1)  # type: ignore
+            fig.add_hline(y=30, line_dash="dash", line_color=SIGMA_THEME["positive"], row=row, col=1)  # type: ignore
             fig.update_yaxes(range=[0, 100], row=row, col=1)
             row += 1
         
