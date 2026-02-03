@@ -1,5 +1,5 @@
 """
-Sigma v3.4.1 - Finance Research Agent
+Sigma v3.5.0 - Finance Research Agent
 
 An elite finance research agent combining:
 - Multi-provider AI (Google Gemini, OpenAI, Anthropic, Groq, xAI, Ollama)
@@ -12,8 +12,8 @@ An elite finance research agent combining:
 - Monitoring, alerts, and watchlists
 """
 
-__version__ = "3.4.1"
-__author__ = "Sigma Team"
+__version__ = "3.5.0"
+__author__ = "Desenyon"
 
 # Core functionality
 from .app import launch, SigmaApp
@@ -101,7 +101,7 @@ from .robustness import (
 )
 
 # Setup
-from .setup import run_setup, quick_setup
+from .setup_agent import run_setup
 
 __all__ = [
     # Version
@@ -181,5 +181,4 @@ __all__ = [
     
     # Setup
     "run_setup",
-    "quick_setup",
 ]
