@@ -3,210 +3,122 @@
 </h1>
 
 <p align="center">
-  <strong>The AI-Powered Finance Research Agent</strong>
+  <strong>The Terminal-Based Financial Research Agent</strong>
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#features">Features</a> •
-  <a href="#commands">Commands</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#roadmap">Roadmap</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/version-3.4.1-blue.svg" alt="Version 3.4.1"/>
+  <img src="https://img.shields.io/badge/version-3.5.0-blue.svg" alt="Version 3.5.0"/>
   <img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python 3.11+"/>
-  <img src="https://img.shields.io/badge/platform-cross--platform-lightgrey.svg" alt="Cross Platform"/>
-  <img src="https://img.shields.io/badge/AI-Multi--Provider-purple.svg" alt="Multi-Provider AI"/>
   <img src="https://img.shields.io/badge/license-Proprietary-red.svg" alt="License"/>
+  <img src="https://img.shields.io/badge/UI-Textual-purple.svg" alt="UI Framework"/>
 </p>
 
 ---
 
 ## What is Sigma?
 
-**Sigma isn't just another finance app.** It's a conversational AI agent that thinks like a quant, analyzes like a hedge fund, and speaks like your smartest friend who happens to be a CFA.
+Sigma is a financial analysis terminal powered by modern AI. It unifies natural language research, quantitative backtesting, and real-time market data into a single, high-performance CLI application.
 
-## Quick Start
+Unlike generic chat tools, Sigma is built for finance:
 
-### One Command Install
+- **Deterministic Tools**: Real APIs for quotes, financials, and news—no hallucinations.
+- **Local & Cloud AI**: Route queries to OpenAI, Anthropic, Gemini, or run locally with Ollama.
+- **Integrated Backtesting**: First-class support for LEAN engine to test strategies instantly.
+- **Privacy First**: Your API keys and strategies stay on your machine.
 
-\`\`\`bash
+---
+
+## Installation
+
+### Prerequisites
+
+- Python 3.11+
+- [Optional] Docker (for LEAN) or LEAN CLI
+- [Optional] Ollama (for local inference)
+
+### One-Command Setup
+
+Sigma includes an intelligent **Setup Agent** that handles the heavy lifting.
+
+```bash
+# Clone and install
 pip install sigma-terminal
-\`\`\`
 
-### Launch Sigma
+# Launch (triggers Setup Agent on first run)
+python -m sigma
+```
 
-\`\`\`bash
-sigma
-\`\`\`
+The Setup Agent will:
 
-Or alternatively: `python -m sigma`
-
-### First Launch = Automatic Setup
-
-**That's it.** Sigma detects it's your first time and walks you through:
-
-1. **Choose AI Provider** — Google Gemini, OpenAI, Anthropic, Groq, xAI, or Ollama
-2. **Enter API Key** — Or use local Ollama (completely free, no key needed!)
-3. **Auto-detect Integrations** — Finds Ollama, LEAN, and more
-4. **Launch Directly** — Straight into the beautiful terminal UI
-
-Your config persists at \`~/.sigma/\` — **setup never asks again**.
+1. Detect your OS and Python environment.
+2. Install the LEAN backtesting engine (if missing).
+3. Install and configure Ollama (if missing).
+4. help you add API keys for data providers (Polygon, Alpha Vantage, etc.).
 
 ---
 
-## Features
+## Usage
 
-### Multi-Provider AI Engine
+Sigma is designed for natural language. Just type what you need.
 
-Switch between providers on the fly. Use free tiers or bring your own keys.
+### Market Research
 
-| Provider                | Models                       | Speed     | Cost           | Tool Calls |
-| ----------------------- | ---------------------------- | --------- | -------------- | ---------- |
-| **Google Gemini** | gemini-2.5-flash, 2.5-pro    | Fast      | Free tier      | Native     |
-| **OpenAI**        | gpt-4o, gpt-4o-mini, o3-mini | Fast      | Paid           | Native     |
-| **Anthropic**     | claude-sonnet-4, 3.5-sonnet  | Fast      | Paid           | Native     |
-| **Groq**          | llama-3.3-70b                | Very Fast | Free tier      | Native     |
-| **xAI**           | grok-2, grok-2-mini          | Fast      | Paid           | Native     |
-| **Ollama**        | llama3.2, mistral, phi3      | Local     | **FREE** | Native     |
+> "Analyze AAPL and compare it with MSFT for the last 5 years"
+> "Get me the latest earnings report for NVDA and summarize risks"
+> "Show me a chart of SPY vs QQQ YTD"
 
-**Built-in Rate Limiting** — No more API flooding or timeouts.
+### Quantitative Backtesting
 
-**Error Codes** — Clear error codes (E1100-E1400) help you quickly diagnose issues.
+> "Backtest a simple moving average crossover on BTC-USD from 2020"
+> "Run a momentum strategy on TSLA, weekly rebalance"
 
-### Real-Time Market Intelligence
+### Tool & System Control
 
-| Tool                            | What It Does                                  |
-| ------------------------------- | --------------------------------------------- |
-| \`get_stock_quote\`             | Live price, change, volume, market cap        |
-| \`technical_analysis\`          | RSI, MACD, Bollinger, MAs, Support/Resistance |
-| \`get_financial_statements\`    | Income, balance sheet, cash flow              |
-| \`get_analyst_recommendations\` | Price targets, ratings, consensus             |
-| \`get_insider_trades\`          | Who's buying, who's selling                   |
-| \`get_institutional_holders\`   | Track the smart money                         |
-| \`compare_stocks\`              | Multi-stock comparison with metrics           |
-| \`get_market_overview\`         | Major indices at a glance                     |
-| \`get_sector_performance\`      | Sector rotation analysis                      |
-
-### Data APIs
-
-| Tool                        | Source        | What It Does                         |
-| --------------------------- | ------------- | ------------------------------------ |
-| \`get_economic_indicators\` | Alpha Vantage | GDP, inflation, unemployment, CPI    |
-| \`get_intraday_data\`       | Alpha Vantage | 1min to 60min candles                |
-| \`get_market_news\`         | Alpha Vantage | News with sentiment analysis         |
-| \`polygon_get_quote\`       | Polygon.io    | Real-time quotes with extended data  |
-| \`polygon_get_aggregates\`  | Polygon.io    | Historical bars with custom timespan |
-| \`polygon_get_ticker_news\` | Polygon.io    | News articles for specific tickers   |
-| \`search_financial_news\`   | Exa           | Search Bloomberg, Reuters, WSJ       |
-| \`search_sec_filings\`      | Exa           | 10-K, 10-Q, 8-K filings              |
-
-### Backtesting Engine
-
-| Strategy          | Description             | Use Case           |
-| ----------------- | ----------------------- | ------------------ |
-| \`sma_crossover\` | 20/50 MA crossover      | Trend following    |
-| \`rsi\`           | RSI oversold/overbought | Mean reversion     |
-| \`macd\`          | MACD signal crossovers  | Momentum           |
-| \`bollinger\`     | Band breakout/bounce    | Volatility         |
-| \`momentum\`      | Price momentum          | Trend continuation |
-| \`breakout\`      | S/R level breaks        | Breakout trading   |
+> "Switch model to local llama3"
+> "List all available tools"
+> "/backtest AAPL -s sma_cross" (Shortcuts available)
 
 ---
 
-## Commands
+## Architecture
 
-### In-App Commands
+Sigma v3.5.0 is built on a modular, event-driven architecture:
 
-| Command                     | Description                      |
-| --------------------------- | -------------------------------- |
-| \`/help\`                   | Comprehensive help with examples |
-| \`/clear\`                  | Clear chat history               |
-| \`/keys\`                   | Configure API keys (improved!)   |
-| \`/models\`                 | Show available models            |
-| \`/status\`                 | Current configuration            |
-| \`/provider `<name>`\`    | Switch AI provider               |
-| \`/model `<name>`\`       | Switch model                     |
-| \`/setkey `<p>` `<k>`\` | Set API key for provider         |
-| \`/backtest\`               | Show backtesting strategies      |
-
-### Keyboard Shortcuts
-
-| Shortcut   | Action                  |
-| ---------- | ----------------------- |
-| \`Tab\`    | Autocomplete suggestion |
-| \`Ctrl+L\` | Clear chat              |
-| \`Ctrl+M\` | Show models             |
-| \`Ctrl+H\` | Toggle quick help       |
-| \`Esc\`    | Cancel operation        |
+| Component                  | Description                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Core Engine**      | Orchestrates intent parsing, tool routing, and result synthesis.                                      |
+| **LLM Router**       | Intelligent routing between OpenAI, Anthropic, Google, and Ollama. Handles rate limits and fallbacks. |
+| **Tool Registry**    | A typed system connecting the LLM to 30+ financial data functions.                                    |
+| **Backtest Service** | Wraps the LEAN engine to stream logs and results directly to the TUI.                                 |
+| **UI (Textual)**     | A multi-pane terminal interface with real-time streaming, trace logs, and plotting.                   |
 
 ---
 
 ## Configuration
 
-### Config Location
+Configuration is stored in `~/.sigma/` and managed automatically. You can also edit it manually:
 
-\`\`\`
-~/.sigma/
-|-- config.env           # API keys and settings
-└── .first_run_complete  # First-run marker
-\`\`\`
+`~/.sigma/config.json`:
 
-### Error Codes
+```json
+{
+  "default_model": "gpt-4o",
+  "ollama_url": "http://localhost:11434",
+  "data_providers": {
+    "polygon": "ENABLED",
+    "yfinance": "FALLBACK"
+  }
+}
+```
 
-| Code Range | Category | Example                 |
-| ---------- | -------- | ----------------------- |
-| E1000-1099 | General  | E1002: Timeout          |
-| E1100-1199 | API Keys | E1101: Invalid API key  |
-| E1200-1299 | Provider | E1202: Model not found  |
-| E1300-1399 | Data     | E1300: Symbol not found |
-| E1400-1499 | Network  | E1400: Connection error |
+### Supported Providers
 
----
-
-## Changelog
-
-### v3.4.1 (Current)
-
-- [X] **Color-Coded Returns** — Green/red highlighting for gains/losses
-- [X] **6 New Analysis Tools** — Valuation, risk, earnings, dividends, options, peer comparison
-- [X] **Revamped Help Section** — Beautiful organized /help with 29 tools
-- [X] **ASCII Spinner** — Clean terminal-friendly animation
-- [X] **No Emojis** — Professional text-only interface
-
-### v3.4.0
-
-- [X] **Improved API Key Management** — Beautiful \`/keys\` interface with URLs
-- [X] **Polygon.io Integration** — Real-time quotes, aggregates, news
-- [X] **xAI Grok Support** — Full support for Grok-2 and Grok-2-mini
-- [X] **Error Codes** — Structured error codes (E1000-E1499)
-- [X] **Updated Models** — Removed deprecated, added latest versions
-- [X] **Enhanced AI** — Maximum helpfulness with proactive insights
-- [X] **Modern UI** — Gradient blues, improved styling
-- [X] **Cross-Platform** — Works on macOS, Linux, Windows
-
-### v3.3.x
-
-- [X] Auto-setup on first launch
-- [X] LEAN auto-detection
-- [X] API rate limiting
-- [X] Ollama native tool calls
-- [X] Alpha Vantage & Exa integration
+- **AI**: OpenAI, Anthropic (Claude), Google (Gemini), Ollama (Local)
+- **Data**: Polygon.io, Alpha Vantage, Financial Modeling Prep, YFinance (Default)
 
 ---
 
-## Acknowledgments
+## License
 
-Built with [Textual](https://textual.textualize.io/), [Rich](https://rich.readthedocs.io/), [yfinance](https://github.com/ranaroussi/yfinance), [Plotly](https://plotly.com/python/), LEAN
-
-AI: [Google Gemini](https://ai.google.dev/) • [OpenAI](https://openai.com/) • [Anthropic](https://anthropic.com/) • [Groq](https://groq.com/) • [xAI](https://x.ai/) • [Ollama](https://ollama.ai/)
-
-Data: [Polygon.io](https://polygon.io/) • [Alpha Vantage](https://www.alphavantage.co/) • [Exa](https://exa.ai/)
-
----
-
-<p align="center">
-  <code>σ</code> — Finance Research AI Agent
-</p>
+Proprietary / Closed Source.
+Copyright (c) 2026 Sigma Team. All Rights Reserved.
