@@ -17,16 +17,18 @@ class LLMRouter:
         self.settings = settings
         self.providers: Dict[str, BaseLLM] = {}
         
-        # Initialize providers based on settings
         self._init_providers()
         
     def _init_providers(self):
-        # Sigma Cloud (Default)
-        # Always available due to embedded key fallback in the provider itself
-        self.providers["sigma_cloud"] = SigmaCloudProvider(
-            api_key=self.settings.sigma_cloud_api_key,
-            rate_limiter=RateLimiter(60, 0.5)
-        )
+        # Sigma Cloud - only if key is configured
+        if self.settings.sigma_cloud_api_key:
+            try:
+                self.providers["sigma_cloud"] = SigmaCloudProvider(
+                    api_key=self.settings.sigma_cloud_api_key,
+                    rate_limiter=RateLimiter(60, 0.5)
+                )
+            except ValueError:
+                pass  # No key configured, skip this provider
 
         # OpenAI
         if self.settings.openai_api_key:

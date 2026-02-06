@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive test suite for Sigma v3.4.1.
+"""Comprehensive test suite for Sigma v3.5.5.
 
 Tests all core functionality including:
 - Configuration and settings
@@ -24,14 +24,14 @@ class TestVersion(unittest.TestCase):
     """Test that version is consistent across all files."""
     
     def test_version_consistency(self):
-        """All files should have version 3.4.1."""
+        """All files should have version 3.5.5."""
         from sigma import __version__
         from sigma.app import __version__ as app_version
         from sigma.config import __version__ as config_version
         from sigma.cli import __version__ as cli_version
         from sigma.setup import __version__ as setup_version
         
-        expected = "3.4.1"
+        expected = "3.5.5"
         self.assertEqual(__version__, expected, "sigma/__init__.py version mismatch")
         self.assertEqual(app_version, expected, "sigma/app.py version mismatch")
         self.assertEqual(config_version, expected, "sigma/config.py version mismatch")
@@ -317,7 +317,7 @@ class TestAppComponents(unittest.TestCase):
         
         self.assertNotIn("Native macOS", WELCOME_BANNER)
         self.assertNotIn("native macOS", WELCOME_BANNER)
-        self.assertIn("3.4.1", WELCOME_BANNER)
+        self.assertIn("3.5.5", WELCOME_BANNER)
     
     def test_suggestions_list(self):
         """SUGGESTIONS should have comprehensive entries."""
@@ -401,7 +401,7 @@ class TestImports(unittest.TestCase):
             __version__
         )
         
-        self.assertEqual(__version__, "3.4.1")
+        self.assertEqual(__version__, "3.5.5")
         self.assertTrue(callable(launch))
         self.assertTrue(callable(save_api_key))
 
@@ -471,7 +471,7 @@ def run_interactive_tests():
 if __name__ == "__main__":
     # Run unit tests
     print("=" * 60)
-    print("SIGMA v3.4.1 - COMPREHENSIVE TEST SUITE")
+    print("SIGMA v3.5.5 - COMPREHENSIVE TEST SUITE")
     print("=" * 60)
     
     # Create test suite

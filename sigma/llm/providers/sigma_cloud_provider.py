@@ -1,32 +1,35 @@
 import json
 from typing import Any, Callable, Dict, List, Optional, Union, AsyncIterator
 import logging
-import base64
 
 from .base import BaseLLM
 from .openai_provider import OpenAIProvider
 
 logger = logging.getLogger(__name__)
 
-# Basic obfuscation to prevent simple grep
-# Real key: sk-hc-v1-5bdb47c0ba93410c962d2920e690af25e86629c6bd0d4f969c735ea85dacd0c1
-_P1 = "sk-hc-v1-"
-_P2 = "5bdb47c0ba93410c962d2920e690af25"
-_P3 = "e86629c6bd0d4f969c735ea85dacd0c1"
-
-def _get_key():
-    return f"{_P1}{_P2}{_P3}"
 
 class SigmaCloudProvider(OpenAIProvider):
     """
     Sigma Cloud (Powered by Hack Club).
+    
+    Requires SIGMA_CLOUD_API_KEY to be configured via:
+    - Environment variable: SIGMA_CLOUD_API_KEY
+    - Config file: ~/.sigma/config.env
+    - Setup wizard: sigma-setup
     """
     
     provider_name = "sigma_cloud"
     
     def __init__(self, api_key: Optional[str] = None, rate_limiter=None):
-        # Use provided key or fallback to embedded
-        key = api_key or _get_key()
+        if not api_key:
+            raise ValueError(
+                "Sigma Cloud API key required. Configure via:\n"
+                "  1. Run 'sigma-setup' to configure keys\n"
+                "  2. Set SIGMA_CLOUD_API_KEY environment variable\n"
+                "  3. Add to ~/.sigma/config.env\n"
+                "Get your key at: https://hackclub.com/api"
+            )
+        key = api_key
         
         # Hack Club endpoint
         base_url = "https://ai.hackclub.com/proxy/v1"

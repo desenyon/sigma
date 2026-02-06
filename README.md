@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.5.0-blue.svg" alt="Version 3.5.0"/>
+  <img src="https://img.shields.io/badge/version-3.5.5-blue.svg" alt="Version 3.5.5"/>
   <img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python 3.11+"/>
   <img src="https://img.shields.io/badge/license-Proprietary-red.svg" alt="License"/>
   <img src="https://img.shields.io/badge/UI-Textual-purple.svg" alt="UI Framework"/>
@@ -82,7 +82,7 @@ Sigma is designed for natural language. Just type what you need.
 
 ## Architecture
 
-Sigma v3.5.0 is built on a modular, event-driven architecture:
+Sigma v3.5.5 is built on a modular, event-driven architecture:
 
 | Component                  | Description                                                                                           |
 | -------------------------- | ----------------------------------------------------------------------------------------------------- |

@@ -153,17 +153,17 @@ class SetupAgent:
         save_setting("ollama_url", "http://localhost:11434")
 
     def configure_api_tools(self):
-        console.print("\n[bold]5. Enabling Data Providers[/bold]")
+        console.print("\n[bold]5. Configuring API Keys[/bold]")
         
         providers = [
-            ("Alpha Vantage", "alpha_vantage_key"),
-            ("Polygon.io", "polygon_api_key"),
-            ("Financial Modeling Prep", "fmp_api_key"),
-            ("Exa Search", "exa_api_key"),
-            ("Massive", "massive_api_key"),
-            ("OpenAI", "openai_api_key"),
-            ("Anthropic", "anthropic_api_key"),
-            ("Google Gemini", "google_api_key"),
+            ("Sigma Cloud (Hack Club)", "sigma_cloud"),
+            ("OpenAI", "openai"),
+            ("Anthropic", "anthropic"),
+            ("Google Gemini", "google"),
+            ("Groq", "groq"),
+            ("xAI (Grok)", "xai"),
+            ("Polygon.io", "polygon"),
+            ("Exa Search", "exa"),
         ]
         
         for name, key_id in providers:
