@@ -1,4 +1,4 @@
-"""Configuration management for Sigma v3.5.0."""
+"""Configuration management for Sigma v3.5.5."""
 
 import os
 import shutil
@@ -11,7 +11,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-__version__ = "3.5.0"
+__version__ = "3.5.5"
 
 
 class ErrorCode(IntEnum):
@@ -330,7 +330,7 @@ class Settings(BaseSettings):
     xai_api_key: Optional[str] = Field(default=None, alias="XAI_API_KEY")
     
     # Model settings - REAL API NAMES (Feb 2026)
-    sigma_cloud_model: str = "moonshotai/kimi-k2.5"  # Should map to OpenAI-compatible endpoint
+    sigma_cloud_model: str = "gpt-4o"  # Faster than moonshotai via Hack Club
     google_model: str = "gemini-3-flash-preview"
     openai_model: str = "gpt-5"
     anthropic_model: str = "claude-sonnet-4-20250514"
@@ -352,7 +352,7 @@ class Settings(BaseSettings):
     exa_api_key: Optional[str] = Field(default=None, alias="EXA_API_KEY")
     
     class Config:
-        env_file = str(CONFIG_FILE)
+        env_file = (".env", str(CONFIG_FILE))
         env_file_encoding = "utf-8"
         extra = "ignore"
     
