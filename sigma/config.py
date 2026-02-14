@@ -7,11 +7,15 @@ from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Optional, Tuple
 
+from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+# Load environment variables from .env file immediately
+load_dotenv()
 
-__version__ = "3.5.5"
+
+__version__ = "3.6.1"
 
 
 class ErrorCode(IntEnum):
@@ -65,7 +69,6 @@ class SigmaError(Exception):
 
 class LLMProvider(str, Enum):
     """Supported LLM providers."""
-    SIGMA_CLOUD = "sigma_cloud"  # Hack Club / Default
     GOOGLE = "google"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -76,11 +79,6 @@ class LLMProvider(str, Enum):
 
 # Available models per provider (Feb 2026 - REAL API NAMES)
 AVAILABLE_MODELS = {
-    "sigma_cloud": [
-        "moonshotai/kimi-k2.5", # Default via Hack Club
-        "gpt-4o",
-        "claude-3-5-sonnet-20240620"
-    ],
     "google": [
         "gemini-3-flash-preview",     # Fast multimodal, Pro-level at Flash speed
         "gemini-3-pro-preview",       # Multimodal reasoning (1M tokens)
@@ -318,11 +316,10 @@ class Settings(BaseSettings):
     """Application settings."""
     
     # Provider settings
-    default_provider: LLMProvider = LLMProvider.SIGMA_CLOUD
-    default_model: str = Field(default="gpt-4o", alias="DEFAULT_MODEL")
+    default_provider: LLMProvider = LLMProvider.OLLAMA
+    default_model: str = Field(default="qwen2.5:1.5b", alias="DEFAULT_MODEL")
     
     # LLM API Keys
-    sigma_cloud_api_key: Optional[str] = Field(default=None, alias="SIGMA_CLOUD_API_KEY")
     google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
@@ -330,13 +327,12 @@ class Settings(BaseSettings):
     xai_api_key: Optional[str] = Field(default=None, alias="XAI_API_KEY")
     
     # Model settings - REAL API NAMES (Feb 2026)
-    sigma_cloud_model: str = "gpt-4o"  # Faster than moonshotai via Hack Club
     google_model: str = "gemini-3-flash-preview"
     openai_model: str = "gpt-5"
     anthropic_model: str = "claude-sonnet-4-20250514"
     groq_model: str = "llama-3.3-70b-versatile"
     xai_model: str = "grok-3"
-    ollama_model: str = "llama3.3"
+    ollama_model: str = "qwen2.5:1.5b"
     
     # Ollama settings
     ollama_host: str = "http://localhost:11434"
@@ -347,7 +343,7 @@ class Settings(BaseSettings):
     lean_enabled: bool = Field(default=False, alias="LEAN_ENABLED")
     
     # Data API keys
-    alpha_vantage_api_key: str = Field(default="6ER128DD3NQUPTVC", alias="ALPHA_VANTAGE_API_KEY")
+    alpha_vantage_api_key: Optional[str] = Field(default=None, alias="ALPHA_VANTAGE_API_KEY")
     polygon_api_key: Optional[str] = Field(default=None, alias="POLYGON_API_KEY")
     exa_api_key: Optional[str] = Field(default=None, alias="EXA_API_KEY")
     
@@ -359,7 +355,6 @@ class Settings(BaseSettings):
     def get_api_key(self, provider: LLMProvider) -> Optional[str]:
         """Get API key for a provider."""
         key_map = {
-            LLMProvider.SIGMA_CLOUD: self.sigma_cloud_api_key,
             LLMProvider.GOOGLE: self.google_api_key,
             LLMProvider.OPENAI: self.openai_api_key,
             LLMProvider.ANTHROPIC: self.anthropic_api_key,
@@ -372,7 +367,6 @@ class Settings(BaseSettings):
     def get_model(self, provider: LLMProvider) -> str:
         """Get model for a provider."""
         model_map = {
-            LLMProvider.SIGMA_CLOUD: self.sigma_cloud_model,
             LLMProvider.GOOGLE: self.google_model,
             LLMProvider.OPENAI: self.openai_model,
             LLMProvider.ANTHROPIC: self.anthropic_model,
@@ -434,6 +428,7 @@ def save_api_key(provider: str, key: str) -> bool:
         # Data providers
         "polygon": "POLYGON_API_KEY",
         "alphavantage": "ALPHA_VANTAGE_API_KEY",
+        "alpha_vantage": "ALPHA_VANTAGE_API_KEY",
         "exa": "EXA_API_KEY",
     }
     
