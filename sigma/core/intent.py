@@ -137,7 +137,20 @@ def extract_tickers(text: str) -> List[str]:
         "MY", "ME", "DO", "SO", "NO", "UP", "HE", "WE", "GO", "CEO", "CFO", "CTO",
         "ETF", "IPO", "EPS", "PE", "PB", "ROE", "ROA", "CAGR", "YOY", "QOQ", "MOM",
         "MAX", "MIN", "AVG", "SMA", "EMA", "RSI", "ATR", "ADX", "MACD", "BB",
-        "LEAN", "API", "CSV", "PDF", "PNG", "SVG",
+        "LEAN", "API", "CSV", "PDF", "PNG", "SVG", "JPG", "GIF", "TXT", "JSON",
+        "OVER", "UNDER", "ABOVE", "BELOW", "FROM", "SINCE", "UNTIL", "BEFORE", "AFTER",
+        "THEN", "NOW", "NEXT", "LAST", "PAST", "FUTURE", "CURRENT", "TODAY", "TOMORROW",
+        "YESTERDAY", "WEEK", "MONTH", "YEAR", "DAY", "HOUR", "MINUTE", "SECOND",
+        "WEEKS", "MONTHS", "YEARS", "DAYS", "HOURS", "MINUTES", "SECONDS",
+        "LONG", "SHORT", "BUY", "SELL", "HOLD", "ENTRY", "EXIT", "STOP", "LIMIT",
+        "MARKET", "ORDER", "TRADE", "PRICE", "COST", "VALUE", "PROFIT", "LOSS",
+        "GAIN", "RISK", "REWARD", "RATIO", "SCORE", "RANK", "LEVEL", "POINT",
+        "HIGH", "LOW", "OPEN", "CLOSE", "VOLUME", "CHANGE", "PCT", "PERCENT",
+        "TOTAL", "NET", "GROSS", "REAL", "NOMINAL", "ADJUSTED", "ANNUALIZED",
+        "WHAT", "WHERE", "WHEN", "WHY", "HOW", "WHO", "WHICH", "THAT", "THIS",
+        "THESE", "THOSE", "WITH", "WITHOUT", "VIA", "THROUGH", "DURING", "WHILE",
+        "HERE", "THERE", "ALSO", "ONLY", "JUST", "EVEN", "STILL", "YET", "BUT",
+        "BECAUSE", "SINCE", "ALTHOUGH", "THOUGH", "UNLESS", "UNTIL", "EXCEPT",
     }
     
     tickers = []
@@ -146,8 +159,11 @@ def extract_tickers(text: str) -> List[str]:
             # Prefer known tickers
             if match in COMMON_TICKERS:
                 tickers.append(match)
-            elif len(match) >= 2:  # At least 2 chars for unknown tickers
-                tickers.append(match)
+            # For unknown tickers, apply stricter rules
+            elif len(match) >= 3 and match.isalpha():
+                 # Avoid common English words that happen to be 3-4 letters
+                 # This is a heuristic; ideally we'd check against a dictionary
+                 tickers.append(match)
     
     return list(dict.fromkeys(tickers))  # Remove duplicates, preserve order
 
@@ -164,8 +180,80 @@ class IntentParser:
         self.default_horizon = TimeHorizon.DAILY
         self.default_risk = RiskProfile.MODERATE
     
-    def parse(self, query: str) -> ResearchPlan:
+    async def parse(self, query: str) -> ResearchPlan:
         """Parse user query into a research plan."""
+        # Try LLM first
+        try:
+            from ..config import get_settings
+            from ..llm.router import get_router
+            
+            settings = get_settings()
+            if settings.openai_api_key or settings.anthropic_api_key or settings.google_api_key or getattr(settings, "ollama_url", None):
+                router = get_router(settings)
+                plan = await self._parse_with_llm(query, router)
+                if plan:
+                    return plan
+        except Exception:
+            pass
+            
+        return self._parse_with_regex(query)
+
+    async def _parse_with_llm(self, query: str, router) -> Optional[ResearchPlan]:
+        """Parse query using LLM."""
+        system_prompt = """You are an expert financial intent parser.
+Your goal is to map the user's natural language query into a structured JSON ResearchPlan.
+
+JSON Schema:
+{
+  "goal": "string (concise summary)",
+  "assets": ["string (ticker symbols)"],
+  "deliverable": "string (one of: analysis, comparison, backtest, portfolio, strategy, chart, report, alert)",
+  "horizon": "string (intraday, daily, weekly, monthly, quarterly, yearly, multi_year)",
+  "risk_profile": "string (conservative, moderate, aggressive, very_aggressive)",
+  "constraints": [{"name": "string", "type": "string", "value": number}],
+  "account_type": "string (taxable, ira, 401k, margin)",
+  "benchmark": "string (e.g., SPY)",
+  "start_date": "YYYY-MM-DD",
+  "end_date": "YYYY-MM-DD",
+  "lookback_period": "string (e.g., 2y, 3mo)",
+  "clarifications_needed": ["string (questions if query is ambiguous)"]
+}
+
+Rules:
+1. Extract all tickers. If none, leave empty.
+2. Infer the deliverable type. Default to "analysis".
+3. Infer the time horizon. Default to "daily".
+4. Infer the risk profile. Default to "moderate".
+5. Extract constraints.
+6. Infer start/end dates or lookback period. Default lookback is "2y".
+7. If the query is vague, ask clarifying questions in "clarifications_needed".
+
+Return ONLY the JSON object.
+"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": query}
+        ]
+        
+        try:
+            response = await router.chat(messages, json_mode=True)
+            if isinstance(response, str):
+                # Clean code blocks
+                if "```json" in response:
+                    response = response.split("```json")[1].split("```")[0]
+                elif "```" in response:
+                    response = response.split("```")[1].split("```")[0]
+                
+                data = json.loads(response.strip())
+                # Ensure context is preserved
+                data["context"] = {"original_query": query}
+                return ResearchPlan(**data)
+        except Exception:
+            return None
+        return None
+
+    def _parse_with_regex(self, query: str) -> ResearchPlan:
+        """Parse user query into a research plan using regex."""
         query_lower = query.lower()
         
         # Extract tickers

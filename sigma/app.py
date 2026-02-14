@@ -1,544 +1,335 @@
-"""Sigma v3.5.5 - Finance Research Agent."""
+"""Sigma v3.6.1 - Finance Research Agent."""
 
 import asyncio
-from typing import Any, Optional, List, Dict
-import re
 import time
+from typing import Any, List, Dict, Optional
+from datetime import datetime
 
 from rich.markdown import Markdown
-from rich.markup import escape
-from rich.table import Table
 from rich.text import Text
-from rich.panel import Panel
-from rich.align import Align
-from rich.console import Group
+from rich.console import RenderableType
+from rich.style import Style
+from rich.syntax import Syntax
 
 from textual import on, work
 from textual.app import App, ComposeResult
+from textual.containers import Vertical, Horizontal, VerticalScroll, Container
+from textual.widgets import Static, Label, Footer, Header, Button
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal, Container
-from textual.screen import Screen
-from textual.widgets import Input, RichLog, Static, Footer
 from textual.reactive import reactive
-from textual.suggester import SuggestFromList
+from textual.message import Message
+from textual.events import Key
 
 from .config import get_settings
-from .core.command_router import CommandRouter, Request
-from .llm.router import get_router
+from .llm.router import get_router, LLMRouter
 from .tools.registry import TOOL_REGISTRY
+# Import tools to ensure registration
+import sigma.tools.local_backtest
+import sigma.tools.backtest
+import sigma.tools.alpha_vantage
+import sigma.tools.exa_search
+import sigma.tools.polygon
+from .core.engine import Engine
 
-__version__ = "3.5.5"
+from .ui.widgets import SigmaInput, SigmaLoader, TickerBadge
 
+__version__ = "3.6.1"
 
-SIGMA_ASCII = """
-[bold #d97757]  ███████ ██  ██████  ███    ███  █████ [/]
-[bold #d97757]  ██      ██ ██       ████  ████ ██   ██[/]
-[bold #d97757]  ███████ ██ ██   ███ ██ ████ ██ ███████[/]
-[bold #d97757]       ██ ██ ██    ██ ██  ██  ██ ██   ██[/]
-[bold #d97757]  ███████ ██  ██████  ██      ██ ██   ██[/]
-"""
+class ChatMessage(Static):
+    """Base class for chat messages."""
+    pass
 
-SIGMA_FRAMES = [
-    "[bold #d97757]σ[/]",
-    "[bold #e08e79]σ[/]",
-    "[bold #f59e0b]σ[/]",
-    "[bold #e08e79]σ[/]",
-    "[bold #d97757]σ[/]",
-    "[#a16145]σ[/]",
-]
-
-SUGGESTIONS = [
-    "analyze AAPL",
-    "analyze NVDA", 
-    "quote TSLA",
-    "quote AAPL",
-    "compare AAPL MSFT GOOGL",
-    "technical analysis SPY",
-    "market overview",
-    "NVDA fundamentals",
-]
-
-
-class SigmaStatus(Static):
-    """Animated sigma loading indicator with tool call display."""
+class UserMessage(ChatMessage):
+    """A message from the user."""
     
-    DEFAULT_CSS = """
-    SigmaStatus {
-        height: auto;
-        min-height: 2;
-        width: 100%;
-        background: #111111;
-        border-left: tall #d97757;
-        padding: 0 1;
-        margin: 0 0 1 0;
-        display: none;
-    }
-    SigmaStatus.active {
-        display: block;
-    }
-    """
-    
-    is_active = reactive(False)
-    
-    def on_mount(self):
-        self.frame = 0
-        self.elapsed = 0.0
-        self.phase = "Thinking"
-        self.tools: List[Dict] = []
-        self.set_interval(0.1, self._tick)
-        
-    def _tick(self):
-        if not self.is_active:
-            return
-            
-        self.frame = (self.frame + 1) % len(SIGMA_FRAMES)
-        self.elapsed += 0.1
-        
-        sigma = SIGMA_FRAMES[self.frame]
-        secs = f"{self.elapsed:.1f}s"
-        
-        lines = []
-        
-        main = Text()
-        main.append_text(Text.from_markup(f" {sigma} "))
-        main.append(self.phase, "#e4e4e7")
-        main.append(f"  [{secs}]", "#52525b")
-        lines.append(main)
-        
-        for tc in self.tools[-3:]:
-            line = Text()
-            if tc.get("done"):
-                line.append("   ", "")
-                line.append("done ", "#22c55e")
-                line.append(tc["name"], "#a1a1aa")
-                if tc.get("result"):
-                    line.append(f" = {tc['result']}", "#71717a")
-                if tc.get("ms"):
-                    line.append(f" ({tc['ms']}ms)", "#3f3f46")
-            else:
-                line.append("   ", "")
-                line.append("running ", "#f59e0b")
-                line.append(tc["name"], "#e4e4e7")
-            lines.append(line)
-        
-        self.update(Group(*lines))
-                
-    def start(self, phase: str = "Thinking"):
-        self.is_active = True
-        self.elapsed = 0.0
-        self.phase = phase
-        self.tools = []
-        self.add_class("active")
-        
-    def stop(self):
-        self.is_active = False
-        self.remove_class("active")
-        
-    def set_phase(self, phase: str):
-        self.phase = phase
-        
-    def add_tool(self, name: str) -> int:
-        idx = len(self.tools)
-        self.tools.append({"name": name, "done": False, "start": time.time()})
-        self.phase = f"Calling {name}"
-        return idx
-        
-    def finish_tool(self, idx: int, result: Any):
-        if idx < len(self.tools):
-            tc = self.tools[idx]
-            tc["done"] = True
-            tc["ms"] = int((time.time() - tc["start"]) * 1000)
-            
-            if isinstance(result, dict):
-                if "price" in result:
-                    tc["result"] = f"${result['price']}"
-                elif "current_price" in result:
-                    tc["result"] = f"${result['current_price']}"
-                elif "error" in result:
-                    tc["result"] = f"error"
-                elif "symbol" in result:
-                    tc["result"] = result["symbol"]
-            
-            self.phase = "Processing"
-
-
-class ActionBtn(Static):
-    """Action button without emojis."""
-    
-    DEFAULT_CSS = """
-    ActionBtn {
-        width: auto;
-        min-width: 12;
-        height: 3;
-        background: #1a1a1a;
-        color: #a1a1aa;
-        border: round #2a2a2a;
-        padding: 0 2;
-        margin-right: 1;
-        content-align: center middle;
-    }
-    ActionBtn:hover {
-        background: #252525;
-        color: #e4e4e7;
-        border: round #d97757;
-    }
-    ActionBtn:focus {
-        border: round #d97757;
-    }
-    """
-    
-    def __init__(self, label: str, cmd: str, **kwargs):
+    def __init__(self, content: str, **kwargs):
         super().__init__(**kwargs)
-        self.label = label
-        self.cmd = cmd
-        self.can_focus = True
+        self.content = content
+
+    def render(self) -> RenderableType:
+        return Text(f"> {self.content}", style="bold #a9b1d6")
+
+class ToolMessage(ChatMessage):
+    """A message representing a tool call."""
+    
+    status = reactive("Running...")
+    result = reactive("")
+    
+    def __init__(self, tool_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.tool_name = tool_name
+        self.start_time = time.time()
+        self.finished = False
+
+    def render(self) -> RenderableType:
+        # Minimalist tool output
+        if not self.finished:
+            return Text(f"  [RUN] {self.tool_name}...", style="dim #565f89")
         
-    def on_mount(self):
-        self.update(f"[bold]{self.label}[/]")
+        status_color = "#9ece6a" if "Error" not in self.status else "#f7768e"
+        status_text = "[OK]" if "Error" not in self.status else "[ERR]"
         
-    def on_click(self):
-        self.post_message(ActionBtn.Clicked(self))
+        text = Text()
+        text.append(f"  {status_text} ", style=status_color)
+        text.append(f"{self.tool_name} ", style="bold #7aa2f7")
         
-    class Clicked:
-        def __init__(self, btn): self.btn = btn
-
-
-class SplashScreen(Screen):
-    BINDINGS = [("enter", "go", "Start"), ("space", "go", "Start")]
-    DEFAULT_CSS = """
-    SplashScreen { background: #0a0a0a; }
-    #splash { align: center middle; height: 100%; }
-    #tag { color: #71717a; margin: 2; }
-    #hint { color: #52525b; }
-    """
-
-    def compose(self) -> ComposeResult:
-        yield Container(
-            Static(Align.center(SIGMA_ASCII), id="art"),
-            Static(Align.center(f"v{__version__} | Finance Research Agent"), id="tag"),
-            Static(Align.center("Press Enter"), id="hint"),
-            id="splash"
-        )
-
-    def action_go(self):
-        self.app.switch_screen("main")
-
-
-class MainScreen(Screen):
-    BINDINGS = [
-        Binding("ctrl+l", "clear", "Clear", show=True),
-        Binding("ctrl+b", "trace", "Trace", show=True),
-        Binding("ctrl+h", "help", "Help", show=True),
-    ]
-
-    DEFAULT_CSS = """
-    MainScreen { background: #0a0a0a; }
-    
-    #main { height: 100%; width: 100%; }
-    #chat-area { width: 1fr; height: 100%; padding: 1 2; }
-    
-    #log {
-        width: 100%;
-        height: 1fr;
-        background: #0a0a0a;
-        border: none;
-        scrollbar-size: 1 1;
-        scrollbar-background: #0a0a0a;
-        scrollbar-color: #252525;
-    }
-    
-    #btns { height: 3; width: 100%; margin-bottom: 1; }
-    
-    #input {
-        width: 100%;
-        height: 3;
-        background: #151515;
-        border: round #3a3a3a;
-        color: #e4e4e7;
-    }
-    #input:focus { border: round #d97757; background: #1a1a1a; }
-    
-    Input > .input--placeholder { color: #52525b; }
-    Input > .input--suggestion { color: #6b7280; }
-    
-    #sidebar {
-        width: 50;
-        dock: right;
-        background: #0f0f0f;
-        border-left: tall #1a1a1a;
-        display: none;
-        padding: 1;
-    }
-    #sidebar.show { display: block; }
-    
-    #trace { background: #0f0f0f; height: 1fr; }
-    .hdr { color: #52525b; text-align: center; margin-bottom: 1; }
-    """
-
-    def compose(self) -> ComposeResult:
-        with Horizontal(id="main"):
-            with Vertical(id="chat-area"):
-                log = RichLog(id="log", wrap=True, markup=True)
-                log.can_focus = False
-                yield log
-                
-                yield SigmaStatus(id="status")
-                
-                with Horizontal(id="btns"):
-                    yield ActionBtn("Analyze", "analyze ", id="b1")
-                    yield ActionBtn("Quote", "quote ", id="b2")
-                    yield ActionBtn("Compare", "compare ", id="b3")
-                    yield ActionBtn("Market", "market overview", id="b4")
-                
-                yield Input(
-                    placeholder="Ask Sigma... (try 'quote AAPL')", 
-                    id="input",
-                    suggester=SuggestFromList(SUGGESTIONS, case_sensitive=False)
-                )
+        duration = time.time() - self.start_time
+        text.append(f"({duration:.2f}s)", style="dim")
             
-            with Vertical(id="sidebar"):
-                yield Static("Trace", classes="hdr")
-                trace = RichLog(id="trace", wrap=True, markup=True)
-                trace.can_focus = False
-                yield trace
+        if self.result is not None and str(self.result).strip():
+            display_result = str(self.result).strip()
+            # Clean up newlines for compact display
+            display_result = display_result.replace("\n", " ")
+            if len(display_result) > 100:
+                display_result = display_result[:100] + "..."
+            text.append(f" -> {display_result}", style="italic #565f89")
+            
+        return text
         
-        yield Footer()
+    def complete(self, result: Any, error: bool = False):
+        self.finished = True
+        self.result = result
+        self.status = "Error" if error else "Completed"
+        if error:
+            self.add_class("error")
+        else:
+            self.add_class("completed")
+        self.refresh()
 
-    def on_mount(self):
-        self.query_one("#input").focus()
-        self._welcome()
-        
-    def _welcome(self):
-        log = self.query_one("#log", RichLog)
-        msg = Text()
-        msg.append("σ ", "bold #d97757")
-        msg.append("Sigma v3.5.5", "bold")
-        msg.append(" ready\n\n", "#71717a")
-        msg.append("  Try: ", "#52525b")
-        msg.append("quote AAPL", "#22c55e")
-        msg.append("   ", "")
-        msg.append("analyze NVDA", "#22c55e")
-        msg.append("   ", "")
-        msg.append("compare AAPL MSFT\n", "#22c55e")
-        log.write(Panel(msg, border_style="#2a2a2a"))
-        
-    @on(ActionBtn.Clicked)
-    def on_btn(self, event):
-        inp = self.query_one("#input", Input)
-        inp.value = event.btn.cmd
-        inp.focus()
-        
-    def action_help(self):
-        log = self.query_one("#log", RichLog)
-        txt = Text()
-        txt.append("Commands\n", "bold")
-        txt.append("  quote <SYM>     ", "#d97757")
-        txt.append("Current price\n", "#71717a")
-        txt.append("  analyze <SYM>   ", "#d97757")
-        txt.append("Full analysis\n", "#71717a")
-        txt.append("  compare A B     ", "#d97757")
-        txt.append("Compare stocks\n", "#71717a")
-        log.write(Panel(txt, title="[#d97757]Help[/]", border_style="#2a2a2a"))
+class AssistantMessage(ChatMessage):
+    """A message from the assistant."""
+    
+    content = reactive("")
+    
+    def render(self) -> RenderableType:
+        return Markdown(self.content)
+    
+    def append(self, chunk: str):
+        self.content += chunk
 
+from .utils.formatting import format_tool_result
 
 class SigmaApp(App):
+    """The main Sigma TUI application."""
+    
     CSS = """
-    Screen { background: #0a0a0a; color: #e4e4e7; }
-    RichLog { scrollbar-background: #0a0a0a; scrollbar-color: #2a2a2a; }
-    Footer { background: #0f0f0f; }
-    Footer > .footer--key { background: #1a1a1a; color: #d97757; }
-    Footer > .footer--description { color: #71717a; }
+    /* Tokyonight / Claude Code Inspired Theme */
+    Screen {
+        background: #1a1b26; /* Tokyonight Background */
+        color: #a9b1d6;
+    }
+    
+    #chat-view {
+        height: 1fr;
+        overflow-y: auto;
+        padding: 1 2;
+        scrollbar-gutter: stable;
+    }
+    
+    #input-area {
+        height: auto;
+        dock: bottom;
+        background: #16161e; /* Slightly darker */
+        padding: 1 2;
+        border-top: solid #2f334d;
+        layout: vertical;
+    }
+    
+    #input-bar {
+        height: 1;
+        layout: horizontal;
+    }
+
+    #prompt-char {
+        color: #7aa2f7;
+        margin-right: 1;
+        text-style: bold;
+    }
+    
+    SigmaInput {
+        width: 1fr;
+        background: transparent;
+        border: none;
+        color: #c0caf5;
+    }
+    SigmaInput:focus {
+        border: none;
+    }
+    
+    SigmaLoader {
+        width: auto;
+        margin-left: 2;
+        display: none;
+    }
+    SigmaLoader.active {
+        display: block;
+    }
+
+    UserMessage {
+        margin: 1 0;
+        color: #c0caf5;
+    }
+
+    ToolMessage {
+        margin-left: 2;
+        color: #565f89;
+    }
+    
+    AssistantMessage {
+        margin: 1 0 2 0;
+        color: #c0caf5;
+    }
+
+    .welcome-message {
+        text-align: center;
+        color: #565f89;
+        margin: 2 0;
+        text-style: italic;
+    }
+    
+    #suggestion-label {
+        color: #565f89;
+        padding-left: 2;
+        margin-bottom: 0;
+        text-style: italic;
+        display: none;
+    }
     """
+    
+    BINDINGS = [
+        Binding("ctrl+c", "quit", "Quit"),
+        Binding("ctrl+l", "clear_chat", "Clear"),
+    ]
 
-    SCREENS = {"splash": SplashScreen, "main": MainScreen}
-
+    def compose(self) -> ComposeResult:
+        # yield Header(show_clock=True) # Minimalist - no header
+        yield VerticalScroll(id="chat-view")
+        
+        with Container(id="input-area"):
+            yield Label("", id="suggestion-label")
+            with Horizontal(id="input-bar"):
+                yield Label(">", id="prompt-char")
+                yield SigmaInput(placeholder="Simmering...")
+                yield TickerBadge(id="ticker-badge")
+                yield SigmaLoader(id="loader")
+            
     def on_mount(self):
-        self.router = CommandRouter()
-        try:
-            self.llm = get_router(get_settings())
-        except Exception:
-            self.llm = None
-        self.push_screen("splash")
+        self.query_one("#chat-view").mount(
+            Static(f"Sigma v{__version__} ready.", classes="welcome-message")
+        )
+        self.engine = Engine()
+        self.router = get_router(get_settings())
+        
+        # Connect input suggestion to label
+        self.query_one(SigmaInput).watch_suggestion = self.update_suggestion_label
 
-    @on(Input.Submitted)
-    async def on_submit(self, event: Input.Submitted):
+    def update_suggestion_label(self, old_val, new_val):
+        label = self.query_one("#suggestion-label")
+        if new_val:
+            label.update(f"Suggestion: {new_val} (Tab)")
+            label.styles.display = "block"
+        else:
+            label.styles.display = "none"
+
+    async def on_input_submitted(self, event: SigmaInput.Submitted):
         query = event.value.strip()
         if not query:
             return
-        
+            
         event.input.value = ""
+        chat_view = self.query_one("#chat-view")
         
-        try:
-            log = event.control.screen.query_one("#log", RichLog)
-        except:
-            return
-
-        display = escape(query)
-        try:
-            req = self.router.parse(query)
-            for t in req.tickers:
-                display = re.sub(f"(?i)\\b{re.escape(t)}\\b", f"[bold #22c55e]{t.upper()}[/]", display)
-        except:
-            pass
-
-        log.write(Text.assemble(("[#d97757]>[/] ", ""), Text.from_markup(display)))
-        log.write("")
+        # Add User Message
+        await chat_view.mount(UserMessage(query))
         
-        self._process(query, log)
+        # Add Assistant Message Placeholder
+        assistant_msg = AssistantMessage()
+        await chat_view.mount(assistant_msg)
+        
+        # Start processing
+        self.query_one("#loader").add_class("active")
+        self.process_query(query, assistant_msg)
 
     @work
-    async def _process(self, query: str, log: RichLog):
-        trace = None
-        try:
-            trace = log.screen.query_one("#trace", RichLog)
-        except:
-            pass
-        
-        status = None
-        try:
-            status = log.screen.query_one(SigmaStatus)
-            status.start("Parsing query")
-        except:
-            pass
+    async def process_query(self, query: str, message_widget: AssistantMessage):
+        chat_view = self.query_one("#chat-view")
         
         try:
-            req = self.router.parse(query)
-            
-            if trace:
-                trace.write(f"[#52525b]intent:[/] [#3b82f6]{req.action}[/]")
-                if req.tickers:
-                    trace.write(f"[#52525b]tickers:[/] [#22c55e]{', '.join(req.tickers)}[/]")
-
-            if req.is_command:
-                await self._cmd(req, log, trace, status)
-            else:
-                await self._chat(req, log, trace, status)
-
-        except Exception as e:
-            log.write(f"[#ef4444]Error: {e}[/]")
-        finally:
-            if status:
-                status.stop()
-
-    async def _cmd(self, req, log, trace, status):
-        if req.action == "backtest":
-            if status:
-                status.set_phase("Running backtest")
-            try:
-                sym = req.tickers[0] if req.tickers else "SPY"
-                from .backtest import run_backtest
-                result = await asyncio.to_thread(run_backtest, sym, "momentum", "1y")
+            # Tool Execution Callback
+            async def on_tool_call(name: str, args: dict):
+                # 1. Mount Tool Message
+                tool_msg = ToolMessage(name)
+                self.call_from_thread(chat_view.mount, tool_msg)
+                self.call_from_thread(chat_view.scroll_end)
                 
-                if "error" in result:
-                    log.write(f"[#ef4444]{result['error']}[/]")
-                else:
-                    perf = result.get("performance", {})
-                    table = Table(box=None, show_header=False)
-                    table.add_column("", style="#71717a")
-                    table.add_column("", justify="right")
-                    
-                    ret = perf.get('total_return', 0)
-                    color = "#22c55e" if ret > 0 else "#ef4444"
-                    table.add_row("Return", f"[{color}]{ret}[/]")
-                    
-                    log.write(Panel(table, title=f"[#d97757]{sym}[/]", border_style="#2a2a2a"))
-            except Exception as e:
-                log.write(f"[#ef4444]{e}[/]")
-
-    async def _chat(self, req, log, trace, status):
-        if not self.llm:
-            log.write(Panel(
-                "[#f59e0b]LLM not configured.[/] Run: sigma --setup",
-                border_style="#2a2a2a"
-            ))
-            return
-
-        if status:
-            status.set_phase("Connecting to AI")
-
-        system = """You are Sigma, a financial research assistant.
-
-CRITICAL RULES:
-1. ALWAYS use the get_stock_quote tool to get current stock prices - NEVER make up prices
-2. Use technical_analysis for RSI, moving averages, etc.
-3. Use get_company_info for fundamentals like P/E ratio, market cap
-4. Be concise and direct with your answers
-5. Include thought_signature parameter in every tool call
-
-When asked about a stock price, ALWAYS call get_stock_quote first."""
-        
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": req.original_query}
-        ]
-        
-        tool_idx = {}
-        
-        async def on_tool(name: str, args: dict):
-            if status:
-                idx = status.add_tool(name)
-                tool_idx[id(args)] = idx
-                
-            if trace:
-                trace.write(f"[#f59e0b]call[/] [#3b82f6]{name}[/]")
-            
-            start = time.time()
-            try:
-                result = await TOOL_REGISTRY.execute(name, args)
-                ms = int((time.time() - start) * 1000)
-                
-                if status and id(args) in tool_idx:
-                    status.finish_tool(tool_idx[id(args)], result)
-                    
-                if trace:
-                    if isinstance(result, dict) and "price" in result:
-                        trace.write(f"  [#22c55e]ok[/] ${result['price']} ({ms}ms)")
+                # 2. Execute Tool
+                try:
+                    tool_def = TOOL_REGISTRY.get_tool(name)
+                    if not tool_def:
+                        result = {"error": f"Tool {name} not found"}
                     else:
-                        trace.write(f"  [#22c55e]ok[/] ({ms}ms)")
-                    
-                return result
-            except Exception as e:
-                if trace:
-                    trace.write(f"  [#ef4444]err[/] {str(e)[:25]}")
-                raise
-        
-        try:
-            if status:
-                status.set_phase("Waiting for response")
+                        if asyncio.iscoroutinefunction(tool_def.func):
+                            result = await tool_def.func(**args)
+                        else:
+                            result = await asyncio.to_thread(tool_def.func, **args)
+                            
+                except Exception as e:
+                    result = {"error": str(e)}
                 
-            stream = await self.llm.chat(
-                messages,
-                tools=TOOL_REGISTRY.to_llm_format(),
-                on_tool_call=on_tool
+                # 3. Update UI
+                formatted = format_tool_result(result)
+                self.call_from_thread(tool_msg.complete, formatted, error="error" in str(result).lower() and "error" in result if isinstance(result, dict) else False)
+                
+                return result
+
+            # Parse Intent
+            try:
+                plan = await self.engine.intent_parser.parse(query)
+                # We don't show the plan explicitly in the new minimalist UI unless debug mode
+            except Exception as e:
+                pass
+
+            system_prompt = f"""You are Sigma, an elite financial research assistant.
+Your goal is to provide accurate, data-driven, and comprehensive financial analysis.
+
+GUIDELINES:
+- ALWAYS use tools to fetch real data.
+- Be concise. Use Markdown.
+- Use the provided tools proactively.
+"""
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query}
+            ]
+            tools = TOOL_REGISTRY.to_llm_format()
+            
+            response_stream = await self.router.chat(
+                messages=messages,
+                stream=True,
+                tools=tools,
+                on_tool_call=on_tool_call
             )
             
-            if isinstance(stream, str):
-                log.write(Panel(Markdown(stream), border_style="#2a2a2a"))
+            if hasattr(response_stream, '__aiter__'):
+                async for chunk in response_stream:
+                    self.call_from_thread(message_widget.append, chunk)
+                    self.call_from_thread(chat_view.scroll_end)
             else:
-                acc = ""
-                async for chunk in stream:
-                    acc += chunk
-                if acc:
-                    log.write(Panel(Markdown(acc), border_style="#2a2a2a"))
-                    
+                self.call_from_thread(message_widget.append, str(response_stream))
+
         except Exception as e:
-            log.write(f"[#ef4444]LLM Error: {e}[/]")
+            self.call_from_thread(message_widget.append, f"\n\n**Error:** {str(e)}")
+        
+        finally:
+            self.call_from_thread(self.query_one("#loader").remove_class, "active")
+            self.call_from_thread(chat_view.scroll_end)
 
-    def action_trace(self):
-        try:
-            sb = self.query_one("#sidebar")
-            sb.set_class(not sb.has_class("show"), "show")
-        except:
-            pass
-            
-    def action_clear(self):
-        try:
-            log = self.screen.query_one("#log", RichLog)
-            log.clear()
-            log.write("[#d97757]σ[/] Cleared.")
-        except:
-            pass
-
+    def action_clear_chat(self):
+        self.query_one("#chat-view").remove_children()
 
 def launch():
-    SigmaApp().run()
+    app = SigmaApp()
+    app.run()
+
+if __name__ == "__main__":
+    launch()

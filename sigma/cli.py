@@ -1,4 +1,4 @@
-"""CLI entry point for Sigma v3.5.5."""
+"""CLI entry point for Sigma v3.6.1."""
 
 import argparse
 import json
@@ -17,14 +17,14 @@ from .config import (
 )
 
 
-__version__ = "3.5.5"
+__version__ = "3.6.1"
 
 console = Console()
 
 
 def show_banner():
     """Show the Sigma banner."""
-    banner = """
+    banner = f"""
 [bold #3b82f6]███████╗██╗ ██████╗ ███╗   ███╗ █████╗ [/bold #3b82f6]
 [bold #60a5fa]██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗[/bold #60a5fa]
 [bold #93c5fd]███████╗██║██║  ███╗██╔████╔██║███████║[/bold #93c5fd]
@@ -32,7 +32,7 @@ def show_banner():
 [bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
 [bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
 
-[dim]v3.5.5[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
+[dim]v{__version__}[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
 """
     console.print(banner)
 
@@ -41,7 +41,7 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="sigma",
-        description="Sigma v3.5.5 - Finance Research Agent",
+        description="Sigma v3.6.1 - Finance Research Agent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

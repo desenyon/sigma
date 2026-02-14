@@ -21,7 +21,7 @@ from .models import (
 from .intent import IntentParser, DecisivenessEngine, PromptPresets
 
 
-class SigmaEngine:
+class Engine:
     """Main research engine for Sigma."""
     
     def __init__(self):
@@ -34,7 +34,7 @@ class SigmaEngine:
     async def process_query(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Process a user query end-to-end."""
         # Parse intent
-        plan = self.intent_parser.parse(query)
+        plan = await self.intent_parser.parse(query)
         
         # Check if clarifications needed
         if plan.clarifications_needed:
