@@ -38,6 +38,40 @@ jobs:
           name: python-package-distributions
           path: dist/
 
+  build-binaries:
+    name: Build Standalone Binary
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install pyinstaller
+
+      - name: Build with PyInstaller (Unix)
+        if: runner.os != 'Windows'
+        run: pyinstaller --name sigma-${{ runner.os }} --onefile --add-data "sigma/ui:sigma/ui" sigma/__main__.py
+
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: pyinstaller --name sigma-${{ runner.os }} --onefile --add-data "sigma/ui;sigma/ui" sigma/__main__.py
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigma-${{ runner.os }}
+          path: dist/sigma-*
+
   publish-pypi:
     name: Publish to PyPI
     needs: build
@@ -61,7 +95,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: [build, publish-pypi]
+    needs: [build, publish-pypi, build-binaries]
     runs-on: ubuntu-latest
 
     permissions:
@@ -75,6 +109,13 @@ jobs:
         with:
           name: python-package-distributions
           path: dist/
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sigma-*
+          path: binaries
+          merge-multiple: true
 
       - name: Get version from tag
         id: get_version
@@ -91,15 +132,10 @@ jobs:
           echo "pip install sigma-terminal==${{ steps.get_version.outputs.VERSION }}" >> RELEASE_NOTES.md
           echo '```' >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          echo "Or upgrade from a previous version:" >> RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
-          echo '```bash' >> RELEASE_NOTES.md
-          echo "pip install --upgrade sigma-terminal" >> RELEASE_NOTES.md
-          echo '```' >> RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
           echo "### Downloads" >> RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
-          echo "The distribution files are attached to this release." >> RELEASE_NOTES.md
+          echo "- **macOS**: \`sigma-macOS\`" >> RELEASE_NOTES.md
+          echo "- **Linux**: \`sigma-Linux\`" >> RELEASE_NOTES.md
+          echo "- **Windows**: \`sigma-Windows.exe\`" >> RELEASE_NOTES.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -108,6 +144,7 @@ jobs:
           body_path: RELEASE_NOTES.md
           files: |
             dist/*
+            binaries/*
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         env:
