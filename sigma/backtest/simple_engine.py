@@ -44,6 +44,11 @@ STRATEGIES = {
         "description": "Buy on new highs, sell on new lows",
         "params": {"lookback": 20},
     },
+    "pairs_trading": {
+        "name": "Pairs Trading (Mean Reversion)",
+        "description": "Long/Short pair based on spread z-score",
+        "params": {"pair_symbol": "SPY", "window": 20, "entry_z": 2.0, "exit_z": 0.0},
+    },
 }
 
 
@@ -53,6 +58,7 @@ def run_backtest(
     period: str = "2y",
     initial_capital: float = 100000,
     params: Optional[dict] = None,
+    transaction_cost_pct: float = 0.001,  # 0.1% per trade
 ) -> dict:
     """Run a backtest for a given strategy."""
     
@@ -71,8 +77,17 @@ def run_backtest(
         strat_info = STRATEGIES[strategy]
         strat_params = params or strat_info["params"]
         
-        # Generate signals based on strategy
-        if strategy == "sma_crossover":
+        # Handle Pairs Trading special case (needs second symbol)
+        if strategy == "pairs_trading":
+             pair_symbol = strat_params.get("pair_symbol", "SPY")
+             pair_ticker = yf.Ticker(pair_symbol)
+             pair_hist = pair_ticker.history(period=period)
+             # Align data
+             hist, pair_hist = hist.align(pair_hist, join='inner', axis=0)
+             if hist.empty:
+                 return {"error": "Insufficient overlapping data for pairs trading", "symbol": symbol}
+             signals = _pairs_trading_signals(hist, pair_hist, **strat_params)
+        elif strategy == "sma_crossover":
             signals = _sma_crossover_signals(hist, **strat_params)
         elif strategy == "rsi_mean_reversion":
             signals = _rsi_signals(hist, **strat_params)
@@ -88,7 +103,7 @@ def run_backtest(
             signals = pd.Series(0, index=hist.index)
         
         # Run simulation
-        results = _simulate_trades(hist, signals, initial_capital)
+        results = _simulate_trades(hist, signals, initial_capital, transaction_cost_pct)
         
         # Calculate metrics
         metrics = _calculate_metrics(results, hist, initial_capital)
@@ -188,7 +203,28 @@ def _breakout_signals(hist: pd.DataFrame, lookback: int) -> pd.Series:
     return signals
 
 
-def _simulate_trades(hist: pd.DataFrame, signals: pd.Series, initial_capital: float) -> dict:
+def _pairs_trading_signals(hist: pd.DataFrame, pair_hist: pd.DataFrame, window: int, entry_z: float, exit_z: float, **kwargs) -> pd.Series:
+    """Generate pairs trading signals (mean reversion of spread)."""
+    # Calculate spread ratio
+    spread = hist["Close"] / pair_hist["Close"]
+    
+    # Calculate Z-Score
+    mean = spread.rolling(window).mean()
+    std = spread.rolling(window).std()
+    z_score = (spread - mean) / std
+    
+    signals = pd.Series(0, index=hist.index)
+    
+    # Long the spread (Buy A) when Z is low (A is cheap relative to B)
+    signals[z_score < -entry_z] = 1
+    
+    # Short the spread (Sell A) when Z is high (A is expensive relative to B)
+    signals[z_score > entry_z] = -1
+    
+    return signals
+
+
+def _simulate_trades(hist: pd.DataFrame, signals: pd.Series, initial_capital: float, transaction_cost_pct: float = 0.0) -> dict:
     """Simulate trades based on signals."""
     capital = initial_capital
     position = 0
@@ -204,31 +240,48 @@ def _simulate_trades(hist: pd.DataFrame, signals: pd.Series, initial_capital: fl
         
         # Buy signal
         if signal == 1 and prev_signal != 1 and position == 0:
-            shares = int(capital * 0.95 / price)  # Use 95% of capital
-            if shares > 0:
-                cost = shares * price
-                capital -= cost
-                position = 1
-                trades.append({
-                    "date": str(date.date()),
-                    "action": "BUY",
-                    "price": round(price, 2),
-                    "shares": shares,
-                    "value": round(cost, 2),
-                })
+            # Calculate shares
+            max_cost = capital * 0.95 # Buffer
+            shares_to_buy = int(max_cost / price)
+            
+            if shares_to_buy > 0:
+                cost = shares_to_buy * price
+                tx_cost = cost * transaction_cost_pct
+                
+                if capital >= (cost + tx_cost):
+                    shares = shares_to_buy
+                    capital -= (cost + tx_cost)
+                    position = 1
+                    trades.append({
+                        "date": str(date.date()),
+                        "action": "BUY",
+                        "price": round(price, 2),
+                        "shares": shares,
+                        "value": round(cost, 2),
+                        "fee": round(tx_cost, 2),
+                    })
         
         # Sell signal
         elif signal == -1 and position == 1:
             proceeds = shares * price
-            pnl = proceeds - (trades[-1]["value"] if trades else 0)
-            capital += proceeds
+            tx_cost = proceeds * transaction_cost_pct
+            
+            last_trade = trades[-1]
+            buy_val = last_trade["value"]
+            buy_fee = last_trade.get("fee", 0)
+            
+            net_pnl = proceeds - tx_cost - buy_val - buy_fee
+            
+            capital += (proceeds - tx_cost)
+            
             trades.append({
                 "date": str(date.date()),
                 "action": "SELL",
                 "price": round(price, 2),
                 "shares": shares,
                 "value": round(proceeds, 2),
-                "pnl": round(pnl, 2),
+                "fee": round(tx_cost, 2),
+                "pnl": round(net_pnl, 2),
             })
             shares = 0
             position = 0
@@ -260,13 +313,19 @@ def _calculate_metrics(results: dict, hist: pd.DataFrame, initial_capital: float
     # Annualized metrics
     trading_days = len(equity) - 1
     years = trading_days / 252
-    annual_return = ((equity[-1] / initial_capital) ** (1/years) - 1) * 100 if years > 0 else 0
+    
+    if years > 0 and equity[-1] > 0:
+        annual_return = ((equity[-1] / initial_capital) ** (1/years) - 1) * 100
+    else:
+        annual_return = 0
     
     # Risk metrics
     volatility = np.std(daily_returns) * np.sqrt(252) * 100 if len(daily_returns) > 0 else 0
     
-    # Sharpe ratio (assuming 0% risk-free rate)
-    sharpe = (np.mean(daily_returns) * 252) / (np.std(daily_returns) * np.sqrt(252)) if np.std(daily_returns) > 0 else 0
+    # Sharpe ratio (assuming 0% risk-free rate for simplicity, usually 2-5%)
+    rf_daily = 0.04 / 252 # Assume 4% risk free
+    excess_returns = daily_returns - rf_daily
+    sharpe = (np.mean(excess_returns) * 252) / (np.std(daily_returns) * np.sqrt(252)) if np.std(daily_returns) > 0 else 0
     
     # Max drawdown
     peak = np.maximum.accumulate(equity)
