@@ -6,7 +6,6 @@ from .providers.openai_provider import OpenAIProvider
 from .providers.anthropic_provider import AnthropicProvider
 from .providers.google_provider import GoogleProvider
 from .providers.ollama_provider import OllamaProvider
-from .providers.sigma_cloud_provider import SigmaCloudProvider
 from .registry import REGISTRY
 from .rate_limit import RateLimiter
 
@@ -20,16 +19,6 @@ class LLMRouter:
         self._init_providers()
         
     def _init_providers(self):
-        # Sigma Cloud - only if key is configured
-        if self.settings.sigma_cloud_api_key:
-            try:
-                self.providers["sigma_cloud"] = SigmaCloudProvider(
-                    api_key=self.settings.sigma_cloud_api_key,
-                    rate_limiter=RateLimiter(60, 0.5)
-                )
-            except ValueError:
-                pass  # No key configured, skip this provider
-
         # OpenAI
         if self.settings.openai_api_key:
             self.providers["openai"] = OpenAIProvider(

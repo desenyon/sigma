@@ -90,20 +90,18 @@ class OllamaProvider(BaseLLM):
                     text = await response.text()
                     raise Exception(f"Ollama error {response.status}: {text}")
                 
-                tool_calls_acc = [] # Ollama usually sends full tool calls in one chunk for now? Or streaming?
-                # Actually Ollama streams objects.
-                
+                tool_calls_acc = []
                 current_text = ""
                 final_msg = None
                 
+                # Ollama streams line-delimited JSON objects
                 async for line in response.content:
                     if not line:
                         continue
                     try:
-                        chunk = json.loads(line)
-                        if chunk.get("done"):
-                            # If done, we might check for tool calls in the final object or accumulated
-                            pass
+                        # Decode bytes to string
+                        line_str = line.decode('utf-8') if isinstance(line, bytes) else line
+                        chunk = json.loads(line_str)
                         
                         delta = chunk.get("message", {})
                         content = delta.get("content", "")
@@ -113,7 +111,6 @@ class OllamaProvider(BaseLLM):
                             yield content
                         
                         if delta.get("tool_calls"):
-                            # Ollama sends tool calls when they are ready?
                             tool_calls_acc.extend(delta["tool_calls"])
                             
                         if chunk.get("done"):
@@ -147,10 +144,11 @@ class OllamaProvider(BaseLLM):
                      
                      new_messages = messages + [final_msg] + tool_results
                      
+                     # Recursively call generate with updated history
                      generator = await self.generate(new_messages, payload["model"], tools, on_tool_call, stream=True)
-                     if isinstance(generator, str):
-                         # Should not happen with stream=True
-                         yield generator
-                     else:
+                     
+                     if hasattr(generator, '__aiter__'):
                          async for x in generator:
                              yield x
+                     elif isinstance(generator, str):
+                         yield generator
