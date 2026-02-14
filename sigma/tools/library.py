@@ -590,9 +590,10 @@ def get_market_news(tickers: str = "", topics: str = "") -> dict:
 def _get_polygon_key() -> Optional[str]:
     """Get Polygon.io API key from config."""
     try:
-        from .config import get_settings
+        from sigma.config import get_settings
         return get_settings().polygon_api_key
-    except:
+    except Exception as e:
+        # print(f"Error loading settings: {e}")
         return None
 
 
