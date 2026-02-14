@@ -1,5 +1,5 @@
 """
-Sigma v3.5.5 - Finance Research Agent
+Sigma v3.6.1 - Finance Research Agent
 
 An elite finance research agent combining:
 - Multi-provider AI (Google Gemini, OpenAI, Anthropic, Groq, xAI, Ollama)
@@ -12,7 +12,7 @@ An elite finance research agent combining:
 - Monitoring, alerts, and watchlists
 """
 
-__version__ = "3.5.5"
+__version__ = "3.6.1"
 __author__ = "Desenyon"
 
 # Core functionality
