@@ -1,124 +1,140 @@
-<h1 align="center">
-  <code>σ</code> SIGMA
-</h1>
+<div align="center">
+
+# σ SIGMA
+### The Elite Financial Research Terminal
+
+[![Version](https://img.shields.io/badge/version-3.6.1-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://github.com/sigma/terminal)
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg?style=for-the-badge)](LICENSE)
+[![UI](https://img.shields.io/badge/UI-Textual-purple.svg?style=for-the-badge&logo=charm&logoColor=white)](https://textual.textualize.io/)
+[![AI](https://img.shields.io/badge/AI-Multi--Model-green.svg?style=for-the-badge&logo=openai&logoColor=white)](https://ollama.com)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/sigma/terminal/actions)
 
 <p align="center">
-  <strong>The Terminal-Based Financial Research Agent</strong>
+  <em>A high-performance, terminal-based research platform for the modern quantitative analyst.</em>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/version-3.5.5-blue.svg" alt="Version 3.5.5"/>
-  <img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python 3.11+"/>
-  <img src="https://img.shields.io/badge/license-Proprietary-red.svg" alt="License"/>
-  <img src="https://img.shields.io/badge/UI-Textual-purple.svg" alt="UI Framework"/>
-</p>
+</div>
 
 ---
 
-## What is Sigma?
+## ⚡ Overview
 
-Sigma is a financial analysis terminal powered by modern AI. It unifies natural language research, quantitative backtesting, and real-time market data into a single, high-performance CLI application.
+**Sigma v3.6.1** is not just a chatbot—it is a **comprehensive financial operating system**. Designed for speed, privacy, and precision, Sigma unifies state-of-the-art LLMs with institutional-grade data tools in a minimalist, keyboard-centric interface.
 
-Unlike generic chat tools, Sigma is built for finance:
+Inspired by the aesthetics of **Claude Code** and the power of **Bloomberg Terminal**, Sigma provides a distraction-free environment where natural language commands translate instantly into rigorous financial analysis.
 
-- **Deterministic Tools**: Real APIs for quotes, financials, and news—no hallucinations.
-- **Local & Cloud AI**: Route queries to OpenAI, Anthropic, Gemini, or run locally with Ollama.
-- **Integrated Backtesting**: First-class support for LEAN engine to test strategies instantly.
-- **Privacy First**: Your API keys and strategies stay on your machine.
+### ✨ Key Features
+
+- **🖥️ Elite TUI Experience**: A "Tokyonight" themed interface with zero latency, generative autocomplete, and real-time ticker recognition.
+- **🧠 Multi-Model Intelligence**: Seamlessly route queries to **OpenAI o1**, **Claude 3.5 Sonnet**, **Gemini 1.5 Pro**, or run locally with **Ollama (Qwen 2.5)**.
+- **📊 Institutional Data**: Direct integration with **Polygon.io**, **Alpha Vantage**, and **Exa Search** for hallucination-free market data.
+- **📈 Quantitative Backtesting**: Built-in **LEAN Engine** support allows you to generate, test, and refine algorithmic strategies in seconds.
+- **🔒 Privacy by Design**: All API keys and strategies are stored locally. No cloud dependencies. No data logging.
 
 ---
 
-## Installation
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.11+
-- [Optional] Docker (for LEAN) or LEAN CLI
-- [Optional] Ollama (for local inference)
+- **Python 3.11+**
+- **Ollama** (Recommended for local intelligence)
+- **LEAN CLI** (Auto-installed for backtesting)
 
-### One-Command Setup
+### Installation
 
-Sigma includes an intelligent **Setup Agent** that handles the heavy lifting.
+Sigma features an autonomous **Setup Agent** that configures your environment automatically.
 
 ```bash
-# Clone and install
-pip install sigma-terminal
+# 1. Clone the repository
+git clone https://github.com/sigma/terminal.git
+cd sigma
 
-# Launch (triggers Setup Agent on first run)
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Launch Sigma (Triggers Setup Agent)
 python -m sigma
 ```
 
 The Setup Agent will:
-
-1. Detect your OS and Python environment.
-2. Install the LEAN backtesting engine (if missing).
-3. Install and configure Ollama (if missing).
-4. help you add API keys for data providers (Polygon, Alpha Vantage, etc.).
-
----
-
-## Usage
-
-Sigma is designed for natural language. Just type what you need.
-
-### Market Research
-
-> "Analyze AAPL and compare it with MSFT for the last 5 years"
-> "Get me the latest earnings report for NVDA and summarize risks"
-> "Show me a chart of SPY vs QQQ YTD"
-
-### Quantitative Backtesting
-
-> "Backtest a simple moving average crossover on BTC-USD from 2020"
-> "Run a momentum strategy on TSLA, weekly rebalance"
-
-### Tool & System Control
-
-> "Switch model to local llama3"
-> "List all available tools"
-> "/backtest AAPL -s sma_cross" (Shortcuts available)
+1.  Detect your hardware acceleration (Metal/CUDA).
+2.  Install and pull the optimized local model (`qwen2.5:1.5b`).
+3.  Configure your API keys securely in `.env`.
+4.  Initialize the LEAN backtesting engine.
 
 ---
 
-## Architecture
+## 💻 Usage
 
-Sigma v3.5.5 is built on a modular, event-driven architecture:
+Sigma is controlled via natural language or slash commands. The interface is designed for flow.
 
-| Component                  | Description                                                                                           |
-| -------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Core Engine**      | Orchestrates intent parsing, tool routing, and result synthesis.                                      |
-| **LLM Router**       | Intelligent routing between OpenAI, Anthropic, Google, and Ollama. Handles rate limits and fallbacks. |
-| **Tool Registry**    | A typed system connecting the LLM to 30+ financial data functions.                                    |
-| **Backtest Service** | Wraps the LEAN engine to stream logs and results directly to the TUI.                                 |
-| **UI (Textual)**     | A multi-pane terminal interface with real-time streaming, trace logs, and plotting.                   |
+### 🔍 Market Intelligence
+> "Analyze the correlation between NVDA and SMCI over the last 6 months."
+> "What are the key risk factors in Apple's latest 10-K?"
+> "Visualize the volatility surface for SPY options."
+
+### 🛠️ Strategy Development
+> "Backtest a mean-reversion strategy on BTC-USD using 15-minute bars."
+> "Optimize parameters for a dual-moving average crossover on TSLA."
+
+### ⚙️ System Control
+- `/model <name>` - Switch active LLM (e.g., `/model gpt-4o`)
+- `/clear` - Reset context window
+- `/quit` - Exit session
 
 ---
 
-## Configuration
+## 🏗️ Architecture
 
-Configuration is stored in `~/.sigma/` and managed automatically. You can also edit it manually:
+Sigma is built on a modular, event-driven architecture designed for extensibility.
 
-`~/.sigma/config.json`:
+| Layer | Component | Description |
+| :--- | :--- | :--- |
+| **Interface** | **Textual TUI** | Async, reactive terminal UI with custom widgets and syntax highlighting. |
+| **Intelligence** | **LLM Router** | Dynamically routes queries based on complexity and cost (Local vs. Cloud). |
+| **Data** | **Tool Registry** | Type-safe bridge connecting LLMs to 30+ financial data endpoints. |
+| **Execution** | **LEAN Engine** | Dockerized backtesting environment for institutional-grade strategy validation. |
 
-```json
-{
-  "default_model": "gpt-4o",
-  "ollama_url": "http://localhost:11434",
-  "data_providers": {
-    "polygon": "ENABLED",
-    "yfinance": "FALLBACK"
-  }
-}
+---
+
+## 🔧 Configuration
+
+Configuration is managed via the `.env` file in your home directory (`~/.sigma/config.env`) or project root.
+
+```ini
+# Example .env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+POLYGON_API_KEY=...
+DEFAULT_PROVIDER=ollama
+OLLAMA_HOST=http://localhost:11434
 ```
 
-### Supported Providers
+---
 
-- **AI**: OpenAI, Anthropic (Claude), Google (Gemini), Ollama (Local)
-- **Data**: Polygon.io, Alpha Vantage, Financial Modeling Prep, YFinance (Default)
+## 🤝 Contributing
+
+We welcome contributions from the community! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started.
+
+1.  Fork the repository
+2.  Create your feature branch (`git checkout -b feature/amazing-feature`)
+3.  Commit your changes (`git commit -m 'Add some amazing feature'`)
+4.  Push to the branch (`git push origin feature/amazing-feature`)
+5.  Open a Pull Request
 
 ---
 
-## License
+## 📄 License
 
-Proprietary / Closed Source.
-Copyright (c) 2026 Sigma Team. All Rights Reserved.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 📞 Contact
+
+For support or inquiries, please open an issue on GitHub or contact the maintainers at [support@sigma.terminal](mailto:support@sigma.terminal).
+
+<div align="center">
+  <sub>Built with ❤️ by the Sigma Team</sub>
+</div>
