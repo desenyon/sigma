@@ -1,21 +1,22 @@
-"""Configuration management for Sigma v3.5.5."""
+"""Configuration management for Sigma v3.7.0."""
 
 import os
 import shutil
 import subprocess
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import Optional, Tuple
+import json
+from typing import List, Optional, Tuple
 
 from dotenv import load_dotenv
-from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic import ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load environment variables from .env file immediately
 load_dotenv()
 
 
-__version__ = "3.6.1"
+__version__ = "3.7.0"
 
 
 class ErrorCode(IntEnum):
@@ -77,40 +78,45 @@ class LLMProvider(str, Enum):
     OLLAMA = "ollama"
 
 
-# Available models per provider (Feb 2026 - REAL API NAMES)
+# Available models per provider (2026 tier lists — API-style ids for routing/docs)
 AVAILABLE_MODELS = {
     "google": [
-        "gemini-3-flash-preview",     # Fast multimodal, Pro-level at Flash speed
-        "gemini-3-pro-preview",       # Multimodal reasoning (1M tokens)
-        "gemini-3-pro-image-preview", # Image+text focus (65K tokens)
+        "gemini-3.1-pro",       # Flagship reasoning / multimodal
+        "gemini-3-pro",         # Strong general multimodal
+        "gemini-3-flash",       # Fast, high-throughput
+        "gemini-3-pro-image",   # Image-heavy workflows
     ],
     "openai": [
-        "gpt-5",                 # Flagship general/agentic, multimodal (256K)
-        "gpt-5-mini",            # Cost-efficient variant (256K)
-        "gpt-5.2",               # Enterprise knowledge work, advanced reasoning
-        "gpt-5-nano",            # Ultra-cheap/lightweight
-        "o3",                    # Advanced reasoning
-        "o3-mini",               # Fast reasoning
+        "gpt-5.4",              # Top-tier general / agentic
+        "gpt-5.2",              # Strong reasoning & knowledge work
+        "gpt-5.1",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "o3-preview",           # Deep reasoning (preview)
+        "o3-mini",
     ],
     "anthropic": [
-        "claude-sonnet-4-20250514",    # Latest Sonnet
-        "claude-opus-4-20250514",      # Latest Opus
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
     ],
     "groq": [
-        "llama-3.3-70b-versatile",   # Most capable free
-        "llama-3.3-8b-instant",      # Fast free
-        "mixtral-8x7b-32768",        # Good balance free
+        "llama-3.3-70b-versatile",
+        "llama-3.3-8b-instant",
+        "mixtral-8x7b-32768",
     ],
     "xai": [
-        "grok-3",                # Latest full capability
-        "grok-3-mini",           # Latest fast variant
+        "grok-4",
+        "grok-4-mini",
     ],
     "ollama": [
-        "llama3.3",              # Latest local LLM
+        "qwen3.5:8b",           # Strong local default (pull when available)
+        "qwen3.5:4b",
+        "qwen2.5:7b",
+        "llama3.3",
         "llama3.2",
         "mistral",
-        "phi4",                  # Latest Phi
-        "qwen2.5",               # Latest Qwen
+        "deepseek-r1",
     ],
 }
 
@@ -312,12 +318,88 @@ def detect_ollama() -> Tuple[bool, Optional[str]]:
     return False, None
 
 
+def list_ollama_model_names(host: str) -> List[str]:
+    """Return model names reported by Ollama ``/api/tags`` (empty if unreachable)."""
+    import urllib.error
+    import urllib.request
+
+    if not host:
+        return []
+    try:
+        req = urllib.request.Request(f"{host.rstrip('/')}/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+        models = data.get("models") or []
+        return [str(m.get("name", "")).strip() for m in models if m.get("name")]
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError, TypeError):
+        return []
+
+
+def ollama_has_model(host: str, model: str) -> bool:
+    """Return True if ``model`` appears in the local Ollama registry."""
+    if not host or not (model or "").strip():
+        return False
+    want = model.strip()
+    names = list_ollama_model_names(host)
+    if want in names:
+        return True
+    # Tag-flexible match (e.g. llama3.2 vs llama3.2:latest)
+    for n in names:
+        base = n.split(":")[0]
+        if want == n or want == base or n.startswith(want + ":") or want.startswith(base + ":"):
+            return True
+    return False
+
+
+def needs_llm_setup(settings: "Settings") -> bool:
+    """
+    True when the default provider cannot run: missing API key (cloud) or
+    Ollama down / ``DEFAULT_MODEL`` not pulled (local).
+    """
+    p = settings.default_provider
+    if p != LLMProvider.OLLAMA:
+        return settings.get_api_key(p) is None
+    ok, host = detect_ollama()
+    if not ok or not host:
+        return True
+    model = (settings.default_model or "").strip()
+    if not model:
+        return True
+    return not ollama_has_model(host, model)
+
+
+def resolve_ollama_autocomplete_model(settings: "Settings") -> Optional[str]:
+    """Pick an installed Ollama model for inline completion (smaller / faster preferred)."""
+    ok, host = detect_ollama()
+    if not ok or not host:
+        return None
+    names = list_ollama_model_names(host)
+    if not names:
+        return None
+    candidates = [
+        settings.default_model,
+        settings.ollama_model,
+        "qwen3.5:4b",
+        "qwen3.5:8b",
+        "qwen2.5:7b",
+        "llama3.2",
+        "mistral",
+    ]
+    for c in candidates:
+        if c and c in names:
+            return c
+    for n in names:
+        if any(x in n for x in ("1.5b", "4b", ":7b", "8b")):
+            return n
+    return names[0]
+
+
 class Settings(BaseSettings):
     """Application settings."""
     
     # Provider settings
     default_provider: LLMProvider = LLMProvider.OLLAMA
-    default_model: str = Field(default="qwen2.5:1.5b", alias="DEFAULT_MODEL")
+    default_model: str = Field(default="qwen3.5:8b", alias="DEFAULT_MODEL")
     
     # LLM API Keys
     google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
@@ -327,12 +409,12 @@ class Settings(BaseSettings):
     xai_api_key: Optional[str] = Field(default=None, alias="XAI_API_KEY")
     
     # Model settings - REAL API NAMES (Feb 2026)
-    google_model: str = "gemini-3-flash-preview"
-    openai_model: str = "gpt-5"
-    anthropic_model: str = "claude-sonnet-4-20250514"
+    google_model: str = "gemini-3.1-pro"
+    openai_model: str = "gpt-5.4"
+    anthropic_model: str = "claude-sonnet-4-6"
     groq_model: str = "llama-3.3-70b-versatile"
-    xai_model: str = "grok-3"
-    ollama_model: str = "qwen2.5:1.5b"
+    xai_model: str = "grok-4"
+    ollama_model: str = "qwen3.5:8b"
     
     # Ollama settings
     ollama_host: str = "http://localhost:11434"
@@ -347,10 +429,11 @@ class Settings(BaseSettings):
     polygon_api_key: Optional[str] = Field(default=None, alias="POLYGON_API_KEY")
     exa_api_key: Optional[str] = Field(default=None, alias="EXA_API_KEY")
     
-    class Config:
-        env_file = (".env", str(CONFIG_FILE))
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=(".env", str(CONFIG_FILE)),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
     
     def get_api_key(self, provider: LLMProvider) -> Optional[str]:
         """Get API key for a provider."""
