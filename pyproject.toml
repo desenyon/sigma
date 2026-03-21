@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sigma-terminal"
-version = "3.6.1"
+version = "3.7.0"
 description = "Sigma - Finance Research Agent"
 readme = "README.md"
 license = {text = "Proprietary"}
-authors = [{ name = "Sigma Team" }]
+authors = [{ name = "Desenyon" }]
 requires-python = ">=3.11"
 keywords = [
     "finance", "ai", "trading", "research", "terminal", "stocks",
@@ -104,3 +104,12 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-m", "not integration"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: exercises live network APIs (opt-in)",
+]
