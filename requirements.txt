@@ -1,0 +1,2 @@
+# Editable install with dev/test extras (PEP 668–safe: use a venv).
+-e .[dev]
