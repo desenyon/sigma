@@ -34,7 +34,7 @@ class SetupAgent:
     def run(self):
         console.clear()
         console.print(Panel.fit(
-            "[bold blue]Sigma Setup Wizard v3.6.1[/bold blue]\n[dim]Initializing elite financial research environment...[/dim]", 
+            "[bold blue]Sigma Setup Wizard v3.7.0[/bold blue]\n[dim]Initializing elite financial research environment...[/dim]", 
             border_style="blue",
             padding=(1, 2)
         ))
@@ -138,7 +138,7 @@ class SetupAgent:
             subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(3)
             
-        models = ["qwen2.5:1.5b", "llama3.2", "mistral"]
+        models = ["qwen3.5:8b", "qwen3.5:4b", "llama3.3", "mistral"]
         current_models = subprocess.run(["ollama", "list"], capture_output=True, text=True).stdout
         
         console.print("  Available to pull:")
@@ -146,8 +146,8 @@ class SetupAgent:
             status = "[green]Installed[/green]" if m in current_models else "[dim]Not installed[/dim]"
             console.print(f"  - {m:<15} {status}")
             
-        if Confirm.ask("  Pull/Update a model now? (Recommended: qwen2.5:1.5b for fast local tool calling)"):
-            model = Prompt.ask("  Enter model name", default="qwen2.5:1.5b")
+        if Confirm.ask("  Pull/Update a model now? (Recommended: qwen3.5:8b for local tool calling)"):
+            model = Prompt.ask("  Enter model name", default="qwen3.5:8b")
             with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn()) as progress:
                 task = progress.add_task(f"Pulling {model}...", total=None)
                 # Note: subprocess.run will block, so progress bar won't update smoothly without more complex async handling
