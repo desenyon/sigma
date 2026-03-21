@@ -41,9 +41,10 @@ class LLMRouter:
             )
             
         # Ollama (always available usually)
+        ollama_base = getattr(self.settings, "ollama_host", None) or "http://localhost:11434"
         self.providers["ollama"] = OllamaProvider(
-            base_url=getattr(self.settings, "ollama_url", "http://localhost:11434"),
-            rate_limiter=RateLimiter(100, 0.01)
+            base_url=ollama_base,
+            rate_limiter=RateLimiter(100, 0.01),
         )
 
     async def chat(
@@ -72,7 +73,7 @@ class LLMRouter:
                  logger.warning(f"Provider {selected_provider} not available, falling back to Ollama")
                  client = self.providers["ollama"]
                  # Find a fallback model?
-                 selected_model = self.settings.default_fallback_model or "llama3.2"
+                 selected_model = self.settings.default_fallback_model or "llama3.3"
              else:
                  raise ValueError(f"Provider {selected_provider} not configured and no fallback available.")
         
@@ -93,7 +94,7 @@ class LLMRouter:
                  logger.info("Falling back to Ollama due to error")
                  return await self.providers["ollama"].generate(
                      messages=messages,
-                     model="llama3.2", # Hardcoded fallback
+                     model="llama3.3",  # Hardcoded fallback
                      tools=tools,
                      on_tool_call=on_tool_call,
                      stream=stream,
@@ -103,11 +104,18 @@ class LLMRouter:
 
 _router_instance: Optional[LLMRouter] = None
 
-def get_router(settings: Any = None) -> LLMRouter:
+
+def get_router(settings: Any = None, *, force: bool = False) -> LLMRouter:
+    """Return the shared router; use ``force=True`` after config changes."""
     global _router_instance
+    from ..config import get_settings as _get_settings
+
+    if force:
+        s = settings if settings is not None else _get_settings()
+        _router_instance = LLMRouter(s)
+        return _router_instance
     if not _router_instance:
-        if settings:
-            _router_instance = LLMRouter(settings)
-        else:
+        if settings is None:
             raise RuntimeError("LLM Router not initialized and no settings provided")
+        _router_instance = LLMRouter(settings)
     return _router_instance
