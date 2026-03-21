@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive test suite for Sigma v3.7.0.
+"""Comprehensive test suite for Sigma v3.7.1.
 
 Tests all core functionality including:
 - Configuration and settings
@@ -31,7 +31,7 @@ class TestVersion(unittest.TestCase):
         from sigma.cli import __version__ as cli_version
         from sigma.setup import __version__ as setup_version
         
-        expected = "3.7.0"
+        expected = "3.7.1"
         self.assertEqual(__version__, expected, "sigma/__init__.py version mismatch")
         self.assertEqual(app_version, expected, "sigma/app.py version mismatch")
         self.assertEqual(config_version, expected, "sigma/config.py version mismatch")
@@ -326,7 +326,7 @@ class TestAppComponents(unittest.TestCase):
         
         self.assertNotIn("Native macOS", WELCOME_BANNER)
         self.assertNotIn("native macOS", WELCOME_BANNER)
-        self.assertIn("3.7.0", WELCOME_BANNER)
+        self.assertIn("3.7.1", WELCOME_BANNER)
     
     def test_suggestions_list(self):
         """SUGGESTIONS should have comprehensive entries."""
@@ -410,7 +410,7 @@ class TestImports(unittest.TestCase):
             __version__
         )
         
-        self.assertEqual(__version__, "3.7.0")
+        self.assertEqual(__version__, "3.7.1")
         self.assertTrue(callable(launch))
         self.assertTrue(callable(save_api_key))
 
@@ -480,7 +480,7 @@ def run_interactive_tests():
 if __name__ == "__main__":
     # Run unit tests
     print("=" * 60)
-    print("SIGMA v3.7.0 - COMPREHENSIVE TEST SUITE")
+    print("SIGMA v3.7.1 - COMPREHENSIVE TEST SUITE")
     print("=" * 60)
     
     # Create test suite

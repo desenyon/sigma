@@ -1,4 +1,4 @@
-"""CLI entry point for Sigma v3.7.0 — Rich UX layer over the TUI and one-shot commands."""
+"""CLI entry point for Sigma v3.7.1 — Rich UX layer over the TUI and one-shot commands."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from .config import (
     save_setting,
 )
 
-__version__ = "3.7.0"
+__version__ = "3.7.1"
 
 
 def _build_parser() -> argparse.ArgumentParser:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-System Verification Suite for Sigma v3.7.0
+System Verification Suite for Sigma v3.7.1
 Tests all core components, tools, and configurations.
 """
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 APP_NAME = "Sigma"
-VERSION = "3.7.0"
+VERSION = "3.7.1"
 BUNDLE_ID = "com.sigma.app"
 
 
@@ -33,24 +33,28 @@ ICON_SET = """
 """
 
 
-LAUNCHER_SCRIPT = '''#!/bin/bash
+SIGMA_HELP_URL = "https://github.com/desenyon/sigma#readme"
+
+LAUNCHER_SCRIPT = f'''#!/bin/bash
 # Sigma Application Launcher
 
 # Get the directory where the app bundle is located
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../Resources" && pwd )"
+DIR="$( cd "$( dirname "${{BASH_SOURCE[0]}}" )/../Resources" && pwd )"
 
-# Set up environment
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+# Standard locations (python.org installer, Xcode CLT, /usr/local); no package-manager paths
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 
-# Find Python - prefer Homebrew Python 3
+# Find Python (3.11+ preferred)
 if command -v python3.12 &> /dev/null; then
     PYTHON="python3.12"
+elif command -v python3.13 &> /dev/null; then
+    PYTHON="python3.13"
 elif command -v python3.11 &> /dev/null; then
     PYTHON="python3.11"
 elif command -v python3 &> /dev/null; then
     PYTHON="python3"
 else
-    osascript -e 'display dialog "Python 3 is required but not found. Please install Python via Homebrew: brew install python" buttons {"OK"} default button 1 with icon stop with title "Sigma Error"'
+    osascript -e 'display dialog "Python 3.11+ is required. Install from https://www.python.org/downloads/ or follow {SIGMA_HELP_URL}" buttons {{"OK"}} default button 1 with icon stop with title "Sigma Error"'
     exit 1
 fi
 
@@ -82,10 +86,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let bundle = Bundle.main
         let resourcePath = bundle.resourcePath ?? ""
         
-        // Find Python
+        // Find Python (python.org Framework, /usr/local, or system)
         let pythonPaths = [
-            "/opt/homebrew/bin/python3",
             "/usr/local/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
             "/usr/bin/python3"
         ]
         
@@ -98,7 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         guard let python = pythonPath else {
-            showError("Python 3 is required but not found.\\nPlease install Python via Homebrew:\\nbrew install python")
+            showError("Python 3.11+ is required but not found.\\nInstall from https://www.python.org/downloads/\\nor see https://github.com/desenyon/sigma#readme")
             NSApp.terminate(nil)
             return
         }

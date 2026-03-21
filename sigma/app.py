@@ -1,4 +1,4 @@
-"""Sigma v3.7.0 - Finance Research Agent."""
+"""Sigma v3.7.1 - Finance Research Agent."""
 
 import asyncio
 import time
@@ -117,7 +117,7 @@ class SetupGate(Vertical):
     def on_mount(self) -> None:
         self.query_one("#setup-body-text", Static).update(format_setup_instructions())
 
-__version__ = "3.7.0"
+__version__ = "3.7.1"
 
 SYSTEM_PROMPT = """You are Sigma, an elite financial research assistant.
 Your goal is to provide accurate, data-driven, and comprehensive financial analysis.

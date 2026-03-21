@@ -34,7 +34,7 @@ class SetupAgent:
     def run(self):
         console.clear()
         console.print(Panel.fit(
-            "[bold blue]Sigma Setup Wizard v3.7.0[/bold blue]\n[dim]Initializing elite financial research environment...[/dim]", 
+            "[bold blue]Sigma Setup Wizard v3.7.1[/bold blue]\n[dim]Initializing elite financial research environment...[/dim]", 
             border_style="blue",
             padding=(1, 2)
         ))

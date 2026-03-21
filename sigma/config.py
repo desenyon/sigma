@@ -1,4 +1,4 @@
-"""Configuration management for Sigma v3.7.0."""
+"""Configuration management for Sigma v3.7.1."""
 
 import os
 import shutil
@@ -16,7 +16,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 load_dotenv()
 
 
-__version__ = "3.7.0"
+__version__ = "3.7.1"
 
 
 class ErrorCode(IntEnum):

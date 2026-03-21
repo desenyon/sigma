@@ -19,7 +19,7 @@ The `scripts/` directory contains essential automation utilities for building, p
 **Details**:
 - Creates the folder structure (`Sigma.app/Contents/MacOS`, `Resources`, etc.).
 - Generates `Info.plist` with metadata (Bundle ID: `com.sigma.app`).
-- Creates a launcher script that detects the user's Python installation (Homebrew/System) and launches the module.
+- Creates a launcher script that detects the user's Python installation (python.org, `/usr/local`, or system) and launches the module.
 - Handles icon generation (currently placeholder).
 **Dependencies**: Standard Python libraries (`os`, `plistlib`, `shutil`).
 

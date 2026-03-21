@@ -5,9 +5,10 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
+RELEASE_VERSION="3.7.1"
 
 echo "========================================"
-echo "  Sigma v3.7.0 Build Script"
+echo "  Sigma v${RELEASE_VERSION} Build Script"
 echo "========================================"
 echo ""
 
@@ -28,20 +29,24 @@ echo ""
 echo "Cleaning previous builds..."
 rm -rf dist/ build/ *.egg-info sigma/*.egg-info
 
-# Install/upgrade build tools
+# Build: prefer uv (avoids PEP 668 "externally managed" failures on many macOS Pythons)
 echo ""
-echo "Installing build tools..."
-python3 -m pip install --upgrade pip build twine --quiet
-
-# Build the package
-echo ""
-echo "Building package..."
-python3 -m build
-
-# Create macOS app bundle
-echo ""
-echo "Creating macOS app bundle..."
-python3 scripts/create_app.py --output dist
+if command -v uv &> /dev/null; then
+    echo "Building with uv..."
+    uv build
+    echo ""
+    echo "Creating macOS app bundle..."
+    uv run python scripts/create_app.py --output dist
+else
+    echo "Installing build tools..."
+    python3 -m pip install --upgrade pip build twine --quiet
+    echo ""
+    echo "Building package..."
+    python3 -m build
+    echo ""
+    echo "Creating macOS app bundle..."
+    python3 scripts/create_app.py --output dist
+fi
 
 echo ""
 echo "========================================"
@@ -58,4 +63,6 @@ echo "  pip install dist/*.whl"
 echo ""
 echo "To install the app:"
 echo "  cp -r dist/Sigma.app /Applications/"
+echo ""
+echo "Tip: install uv (https://github.com/astral-sh/uv) for reliable builds on PEP 668 systems."
 echo ""

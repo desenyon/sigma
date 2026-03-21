@@ -4,7 +4,7 @@
 
 ### Terminal-native financial research
 
-[![Version](https://img.shields.io/badge/version-3.7.0-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://github.com/desenyon/sigma)
+[![Version](https://img.shields.io/badge/version-3.7.1-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://github.com/desenyon/sigma)
 [![UI](https://img.shields.io/badge/UI-Textual-7c3aed?style=for-the-badge)](https://textual.textualize.io/)
 [![Python](https://img.shields.io/badge/python-3.11+-0f172a?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
