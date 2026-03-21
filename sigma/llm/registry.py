@@ -12,18 +12,23 @@ class ModelRegistry:
     def __init__(self):
         self._models: Dict[str, ModelInfo] = {}
         
-        # Seed with known models
-        self.register("gpt-4o", "openai", ["tools", "json", "vision"], 128000, "high")
-        self.register("gpt-4o-mini", "openai", ["tools", "json", "vision"], 128000, "low")
-        self.register("o3-mini", "openai", ["reasoning", "tools"], 128000, "high")
+        # Seed with known models (2026-tier ids for provider routing)
+        self.register("gpt-5.4", "openai", ["tools", "json", "vision", "reasoning"], 256000, "high")
+        self.register("gpt-5.2", "openai", ["tools", "json", "vision", "reasoning"], 256000, "high")
+        self.register("gpt-5-mini", "openai", ["tools", "json", "vision"], 256000, "low")
+        self.register("o3-preview", "openai", ["reasoning", "tools"], 256000, "high")
         
-        self.register("claude-3-5-sonnet-latest", "anthropic", ["tools", "vision", "reasoning"], 200000, "high")
+        self.register("claude-opus-4-6", "anthropic", ["tools", "vision", "reasoning"], 200000, "high")
+        self.register("claude-sonnet-4-6", "anthropic", ["tools", "vision", "reasoning"], 200000, "high")
         
-        self.register("gemini-2.0-flash", "google", ["tools", "vision", "json"], 1000000, "free")
-        self.register("gemini-2.0-pro-exp", "google", ["tools", "vision", "reasoning"], 2000000, "free")
+        self.register("gemini-3.1-pro", "google", ["tools", "vision", "json", "reasoning"], 1000000, "high")
+        self.register("gemini-3-flash", "google", ["tools", "vision", "json"], 1000000, "free")
+
+        self.register("grok-4", "xai", ["tools", "json"], 256000, "high")
         
         # Ollama models will be dynamic, but we can register defaults
-        self.register("llama3.2", "ollama", ["tools"], 128000, "free")
+        self.register("qwen3.5:8b", "ollama", ["tools"], 128000, "free")
+        self.register("llama3.3", "ollama", ["tools"], 128000, "free")
         self.register("mistral", "ollama", ["tools"], 32000, "free")
         self.register("deepseek-r1", "ollama", ["reasoning", "tools"], 128000, "free")
 
@@ -40,10 +45,11 @@ class ModelRegistry:
         if model_id in self._models:
             return self._models[model_id].provider
         # Fallback heuristics
-        if model_id.startswith("moonshot"): return "sigma_cloud"  # Add explicit mapping for Sigma Cloud default
         if model_id.startswith("gpt"): return "openai"
+        if model_id.startswith("o3"): return "openai"
         if model_id.startswith("claude"): return "anthropic"
         if model_id.startswith("gemini"): return "google"
+        if model_id.startswith("grok"): return "xai"
         return "ollama"
 
     def list_models(self) -> List[ModelInfo]:
