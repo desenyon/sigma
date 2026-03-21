@@ -1,141 +1,147 @@
 <div align="center">
 
-# σ SIGMA
+# Sigma
 
-### The Elite Financial Research Terminal
+### Terminal-native financial research
 
-[![Version](https://img.shields.io/badge/version-3.6.1-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://github.com/sigma/terminal) [![UI](https://img.shields.io/badge/UI-Textual-purple.svg?style=for-the-badge&logo=charm&logoColor=white)](https://textual.textualize.io/) [![AI](https://img.shields.io/badge/AI-Multi--Model-green.svg?style=for-the-badge&logo=openai&logoColor=white)](https://ollama.com) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/sigma/terminal/actions)
+[![Version](https://img.shields.io/badge/version-3.7.0-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://github.com/desenyon/sigma)
+[![UI](https://img.shields.io/badge/UI-Textual-7c3aed?style=for-the-badge)](https://textual.textualize.io/)
+[![Python](https://img.shields.io/badge/python-3.11+-0f172a?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
-<p align="center">
-  <em>A high-performance, terminal-based research platform for the modern quantitative analyst.</em>
-</p>
+A keyboard-driven research environment that pairs **multi-provider LLMs** with **market data and tooling** in the terminal. Configure keys locally, choose cloud or local models, and stay in flow without leaving the shell.
 
 </div>
 
 ---
 
-## Overview
+## The interface
 
-**Sigma v3.6.1** is not just a chatbot—it is a **comprehensive financial operating system**. Designed for speed, privacy, and precision, Sigma unifies state-of-the-art LLMs with institutional-grade data tools in a minimalist, keyboard-centric interface.
+Sigma is built around two surfaces: a **full-screen terminal UI (TUI)** for interactive work, and a **CLI** for quick commands, health checks, and scripting.
 
-Inspired by the aesthetics of **Claude Code** and the power of **Bloomberg Terminal**, Sigma provides a distraction-free environment where natural language commands translate instantly into rigorous financial analysis.
+### Full-screen terminal (Textual)
 
-### Key Features
+| | |
+| :--- | :--- |
+| **Launch** | `sigma` or `python -m sigma` |
+| **Layout** | Scrollable conversation, tool activity inline, fixed input row at the bottom |
+| **Theme** | Dark, low-distraction palette (Tokyo Night–inspired) |
+| **Input** | Type natural-language prompts; optional Tab behavior for inline suggestions when Ollama is available |
 
-- **Elite TUI Experience**: A "Tokyonight" themed interface with zero latency, generative autocomplete, and real-time ticker recognition.
-- **Multi-Model Intelligence**: Seamlessly route queries to **OpenAI o1**, **Claude 3.5 Sonnet**, **Gemini 1.5 Pro**, or run locally with **Ollama (Qwen 2.5)**.
-- **Institutional Data**: Direct integration with **Polygon.io**, **Alpha Vantage**, and **Exa Search** for hallucination-free market data.
-- **Quantitative Backtesting**: Built-in **LEAN Engine** support allows you to generate, test, and refine algorithmic strategies in seconds.
-- **Privacy by Design**: All API keys and strategies are stored locally. No cloud dependencies. No data logging.
+**Keyboard**
+
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl+C` | Quit |
+| `Ctrl+L` | Clear the chat view |
+
+On first launch, the setup wizard can walk through optional local (Ollama) and API configuration.
+
+### Command-line interface
+
+| Command | Purpose |
+| :--- | :--- |
+| `sigma` | Open the TUI (after an optional splash and quick-reference panel) |
+| `sigma doctor` | Check Python imports, `ollama` / `lean` on `PATH`, and which API keys are present |
+| `sigma --status` | Show active provider, model, Ollama reachability, LEAN hints, and key status |
+| `sigma ask "…"` | Single-shot LLM query with tools (non-interactive) |
+| `sigma quote SYM …` | Tabular quotes |
+| `sigma chart SYM --period 1y` | Render a chart under `~/.sigma/charts` (optional `-o` copy path) |
+| `sigma backtest SYM -s STRATEGY` | Built-in yfinance strategy backtests |
+| `sigma compare SYM …` | Side-by-side comparison metrics |
+| `sigma --list-models` | Reference list of suggested models by provider |
+| `sigma --setkey PROVIDER KEY` | Store a key in `~/.sigma/config.env` |
+| `sigma --setup` | Run the setup wizard |
+
+Use `sigma -h` for the full option list (including `--version`, `--provider`, `--model`).
 
 ---
 
-## Quick Start
+## Capabilities
 
-### Prerequisites
+- **Models**: Route requests through supported providers (e.g. OpenAI, Anthropic, Google Gemini, Groq, xAI) or **Ollama** locally, via the LLM router and your config.
+- **Data & tools**: Stock quotes, history, comparisons, technicals, and integrations such as **Polygon.io**, **Alpha Vantage**, and **Exa** when keys are set.
+- **Backtesting**: Built-in strategies over historical data (yfinance-backed engine); optional **QuantConnect LEAN** CLI for advanced workflows when installed.
+- **Privacy posture**: API keys and config live under your user account (e.g. `~/.sigma/config.env`); choose what you enable.
+
+---
+
+## Requirements
 
 - **Python 3.11+**
-- **Ollama** (Recommended for local intelligence)
-- **LEAN CLI** (Auto-installed for backtesting)
+- **Ollama** (optional, recommended for local models)
+- **LEAN CLI** (optional, for LEAN-based backtests)
 
-### Installation
+---
 
-Sigma features an autonomous **Setup Agent** that configures your environment automatically.
+## Installation
+
+Use a virtual environment (recommended):
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/sigma/terminal.git
+git clone https://github.com/desenyon/sigma.git
 cd sigma
-
-# 2. Install dependencies
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 3. Launch Sigma (Triggers Setup Agent)
-python -m sigma
+# or: pip install -e ".[dev]"
 ```
 
-The Setup Agent will:
+Start the app:
 
-1. Detect your hardware acceleration (Metal/CUDA).
-2. Install and pull the optimized local model (`qwen2.5:1.5b`).
-3. Configure your API keys securely in `.env`.
-4. Initialize the LEAN backtesting engine.
-
----
-
-## Usage
-
-Sigma is controlled via natural language or slash commands. The interface is designed for flow.
-
-### Market Intelligence
-
-> "Analyze the correlation between NVDA and SMCI over the last 6 months."
-> "What are the key risk factors in Apple's latest 10-K?"
-> "Visualize the volatility surface for SPY options."
-
-### Strategy Development
-
-> "Backtest a mean-reversion strategy on BTC-USD using 15-minute bars."
-> "Optimize parameters for a dual-moving average crossover on TSLA."
-
-### System Control
-
-- `/model <name>` - Switch active LLM (e.g., `/model gpt-4o`)
-- `/clear` - Reset context window
-- `/quit` - Exit session
-
----
-
-## Architecture
-
-Sigma is built on a modular, event-driven architecture designed for extensibility.
-
-| Layer | Component | Description |
-| :--- | :--- | :--- |
-| **Interface** | **Textual TUI** | Async, reactive terminal UI with custom widgets and syntax highlighting. |
-| **Intelligence** | **LLM Router** | Dynamically routes queries based on complexity and cost (Local vs. Cloud). |
-| **Data** | **Tool Registry** | Type-safe bridge connecting LLMs to 30+ financial data endpoints. |
-| **Execution** | **LEAN Engine** | Dockerized backtesting environment for institutional-grade strategy validation. |
+```bash
+sigma
+# or
+python -m sigma
+```
 
 ---
 
 ## Configuration
 
-Configuration is managed via the `.env` file in your home directory (`~/.sigma/config.env`) or project root.
+Environment variables and `~/.sigma/config.env` control providers and models. See `.env.example` for variable names (e.g. `OPENAI_API_KEY`, `POLYGON_API_KEY`, `DEFAULT_MODEL`, `OLLAMA_HOST`).
 
-```ini
-# Example .env
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-POLYGON_API_KEY=...
-DEFAULT_PROVIDER=ollama
-OLLAMA_HOST=http://localhost:11434
-```
+### Model IDs (2026 reference)
+
+Defaults in code target current-tier APIs. Override with `DEFAULT_MODEL` or `sigma --model <id>`.
+
+| Provider | Default id | Notes |
+| :--- | :--- | :--- |
+| Google | `gemini-3.1-pro` | Flash: `gemini-3-flash` |
+| OpenAI | `gpt-5.4` | Also: `gpt-5.2`, `gpt-5`, `o3-preview`, … |
+| Anthropic | `claude-sonnet-4-6` | Opus: `claude-opus-4-6` |
+| Groq | `llama-3.3-70b-versatile` | Hosted Llama / Mixtral on Groq |
+| xAI | `grok-4` | Fast: `grok-4-mini` |
+| Ollama | `qwen3.5:8b` | Local; run `sigma --list-models` for the full suggestion list |
+
+Exact API names change with providers; if a call fails, switch to another id from `sigma --list-models` or your provider’s docs.
+
+---
+
+## Architecture (overview)
+
+| Layer | Role |
+| :--- | :--- |
+| **TUI** | Textual application: chat, tool messages, input widgets |
+| **CLI** | `argparse` + Rich: doctor, status, one-shot commands |
+| **LLM** | Router and provider clients; tool calls from the model |
+| **Tools** | Registry exposing data and analysis functions to the model |
+| **Backtest** | Python engine and optional LEAN integration |
 
 ---
 
 ## Contributing
 
-We welcome contributions from the community! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome. Open an issue or pull request on the [repository](https://github.com/desenyon/sigma).
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+See [LICENSE](LICENSE).
 
 ---
 
-## Contact
+## Links
 
-For support or inquiries, please open an issue on GitHub or contact the maintainers at [support@sigma.terminal](mailto:support@sigma.terminal).
-
-<div align="center">
-  <sub>Built by the Sigma Team</sub>
-</div>
+- [Repository](https://github.com/desenyon/sigma)
+- [Documentation (wiki)](https://github.com/desenyon/sigma/wiki)
