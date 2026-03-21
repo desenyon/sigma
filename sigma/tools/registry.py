@@ -2,13 +2,46 @@
 
 from typing import Any, Callable, Dict, List, Optional
 from dataclasses import dataclass, field
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import inspect
 import asyncio
 import time
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Extra keys some models (e.g. Ollama) attach to tool JSON; never pass to Python callables.
+_LLM_TOOL_JUNK_KEYS = frozenset(
+    {
+        "thought",
+        "thought_signature",
+        "reasoning",
+        "reasoning_content",
+    }
+)
+
+
+def filter_args_for_tool(func: Callable, args: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Strip LLM-only keys and parameters not accepted by ``func``."""
+    if not args:
+        return {}
+    raw = {k: v for k, v in args.items() if k not in _LLM_TOOL_JUNK_KEYS}
+    sig = inspect.signature(func)
+    params = sig.parameters
+    if not params:
+        return {}
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return raw
+    allowed = set()
+    for name, p in params.items():
+        if name == "self":
+            continue
+        if p.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
+            allowed.add(name)
+    return {k: v for k, v in raw.items() if k in allowed}
 
 
 @dataclass
@@ -33,8 +66,7 @@ class ToolDefinition(BaseModel):
     enabled: bool = True
     provider: str = "internal"
     
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class ToolRegistry:
@@ -106,30 +138,22 @@ class ToolRegistry:
         return [t.name for t in self.list_tools()]
 
     def to_llm_format(self) -> List[Dict[str, Any]]:
-        """Convert tools to LLM-compatible format with thought signature."""
+        """Convert tools to LLM-compatible format (no extra required fields — faster, fewer bad keys)."""
         tools_list = []
         for t in self.list_tools():
             import copy
+
             schema = copy.deepcopy(t.input_schema)
-            
-            if "properties" in schema:
-                schema["properties"]["thought_signature"] = {
-                    "type": "string", 
-                    "description": "Internal reasoning for why this tool is being called. MUST be provided."
+            tools_list.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": schema,
+                    },
                 }
-                if "required" in schema and isinstance(schema["required"], list):
-                    schema["required"].append("thought_signature")
-                else:
-                    schema["required"] = ["thought_signature"]
-                
-            tools_list.append({
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": schema
-                }
-            })
+            )
         return tools_list
 
     async def execute(self, name: str, args: Dict[str, Any]) -> Any:
@@ -138,8 +162,7 @@ class ToolRegistry:
         if not tool:
             raise ValueError(f"Tool {name} not found")
         
-        clean_args = {k: v for k, v in args.items() 
-                      if k not in ("thought", "thought_signature")}
+        clean_args = filter_args_for_tool(tool.func, args)
         
         start_time = time.time()
         error = None
