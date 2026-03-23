@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Textual app wiring and shared UI constants for Sigma v3.7.1."""
+"""Verify Textual app wiring and shared UI constants for Sigma v3.7.2."""
 
 import re
 import sys
@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 print("=" * 60)
-print("SIGMA v3.7.1 - UI VERIFICATION")
+print("SIGMA v3.7.2 - UI VERIFICATION")
 print("=" * 60)
 
 print("\n[1] Checking app components...")
@@ -27,7 +27,7 @@ try:
     print(f"  [ok] App components imported - v{__version__}")
     print(f"  [ok] SUGGESTIONS: {len(SUGGESTIONS)} items")
     print(f"  [ok] SYSTEM_PROMPT length: {len(SYSTEM_PROMPT)} chars")
-    assert "3.7.1" in WELCOME_BANNER
+    assert "3.7.2" in WELCOME_BANNER
 except ImportError as e:
     print(f"  [FAIL] Import error: {e}")
     sys.exit(1)
@@ -128,7 +128,7 @@ from sigma.config import __version__ as cfg_v
 
 print(f"  App version: {app_v}")
 print(f"  Config version: {cfg_v}")
-version_match = app_v == cfg_v == "3.7.1"
+version_match = app_v == cfg_v == "3.7.2"
 print(f"  [{'ok' if version_match else 'FAIL'}] Versions {'match' if version_match else 'mismatch'}")
 
 print("\n[10] Checking for no emojis in WELCOME_BANNER...")
