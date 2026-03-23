@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
-RELEASE_VERSION="3.7.1"
+RELEASE_VERSION="3.7.2"
 
 echo "========================================"
 echo "  Sigma v${RELEASE_VERSION} Build Script"
