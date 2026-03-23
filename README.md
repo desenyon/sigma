@@ -4,7 +4,7 @@
 
 ### Terminal-native financial research
 
-[![Version](https://img.shields.io/badge/version-3.7.1-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://github.com/desenyon/sigma)
+[![Version](https://img.shields.io/badge/version-3.7.2-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://github.com/desenyon/sigma)
 [![UI](https://img.shields.io/badge/UI-Textual-7c3aed?style=for-the-badge)](https://textual.textualize.io/)
 [![Python](https://img.shields.io/badge/python-3.11+-0f172a?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
@@ -14,45 +14,95 @@ A keyboard-driven research environment that pairs **multi-provider LLMs** with *
 
 ---
 
-## The interface
+## Command reference
 
-Sigma is built around two surfaces: a **full-screen terminal UI (TUI)** for interactive work, and a **CLI** for quick commands, health checks, and scripting.
+Sigma has two surfaces: a **full-screen TUI** (Textual) for interactive research, and a **CLI** for one-shot commands, health checks, and scripting. Configuration and exports live under **`~/.sigma/`** (for example `config.env`, `charts/`, `exports/`).
 
-### Full-screen terminal (Textual)
+### Launch
 
-| | |
+| How | Notes |
 | :--- | :--- |
-| **Launch** | `sigma` or `python -m sigma` |
-| **Layout** | Scrollable conversation, tool activity inline, fixed input row at the bottom |
-| **Theme** | Dark, low-distraction palette (Tokyo Night–inspired) |
-| **Input** | Type natural-language prompts; optional Tab behavior for inline suggestions when Ollama is available |
+| `sigma` | Default: opens the TUI (splash + quick reference, then chat). |
+| `python -m sigma` | Same as above. |
+| `sigma-app` | **macOS GUI script** (see `[project.gui-scripts]` in `pyproject.toml`): launches the packaged app entry when installed. |
 
-**Keyboard**
+On **first run**, an interactive setup wizard may run; you can also use `sigma --setup` or `sigma-setup` anytime.
 
-| Shortcut | Action |
+---
+
+### CLI (terminal)
+
+Global options (run before or without a subcommand):
+
+| Option | Purpose |
 | :--- | :--- |
-| `Ctrl+C` | Quit |
-| `Ctrl+L` | Clear the chat view |
+| `-h`, `--help` | Full argparse help and examples. |
+| `-v`, `--version` | Show version (Rich banner unless `--no-ui`). |
+| `--no-ui` | With `--version`: print plain `sigma x.y.z` only. |
+| `--setup` | Interactive setup wizard. |
+| `--setkey PROVIDER KEY` | Save a key in `~/.sigma/config.env` (`google`, `openai`, `anthropic`, `groq`, `xai`, `polygon`, `alphavantage`, `exa`). |
+| `--provider {google,openai,anthropic,groq,xai,ollama}` | Set default AI provider. |
+| `--model MODEL` | Set default model id. |
+| `--list-models` | Print bundled model suggestions by provider. |
+| `--status` | Config summary: provider, model, Ollama, LEAN hints, key presence. |
 
-On first launch, the setup wizard can walk through optional local (Ollama) and API configuration.
-
-### Command-line interface
+Subcommands:
 
 | Command | Purpose |
 | :--- | :--- |
-| `sigma` | Open the TUI (after an optional splash and quick-reference panel) |
-| `sigma doctor` | Check Python imports, `ollama` / `lean` on `PATH`, and which API keys are present |
-| `sigma --status` | Show active provider, model, Ollama reachability, LEAN hints, and key status |
-| `sigma ask "…"` | Single-shot LLM query with tools (non-interactive) |
-| `sigma quote SYM …` | Tabular quotes |
-| `sigma chart SYM --period 1y` | Render a chart under `~/.sigma/charts` (optional `-o` copy path) |
-| `sigma backtest SYM -s STRATEGY` | Built-in yfinance strategy backtests |
-| `sigma compare SYM …` | Side-by-side comparison metrics |
-| `sigma --list-models` | Reference list of suggested models by provider |
-| `sigma --setkey PROVIDER KEY` | Store a key in `~/.sigma/config.env` |
-| `sigma --setup` | Run the setup wizard |
+| `sigma ask QUERY…` | One-shot LLM call **with tools** (non-interactive); uses your default provider/model. |
+| `sigma quote SYM [SYM …]` | Table of quotes (price, change, volume). |
+| `sigma chart SYM` | Candlestick chart written under `~/.sigma/charts` (yfinance). Use `--period` (default `6mo`), `-o` / `--output` to copy PNG elsewhere. |
+| `sigma backtest SYM` | Built-in backtest engine. `-s` / `--strategy` (default `sma_crossover`), `--period` (default `1y`). |
+| `sigma compare SYM [SYM …]` | Compare returns, vol, Sharpe, P/E, etc. |
+| `sigma news SYM` | Unified headline digest (Polygon / Alpha Vantage / Exa / Yahoo depending on keys). `-n` / `--limit` for max articles. |
+| `sigma doctor` | Health check: Python deps, `ollama` / `lean` on `PATH`, API key **presence** (not values). |
+| `sigma tools` | Print all registered LLM tool names (same registry the TUI uses). |
 
-Use `sigma -h` for the full option list (including `--version`, `--provider`, `--model`).
+**`sigma backtest -s` strategy ids** (implemented in the built-in engine): `sma_crossover`, `rsi_mean_reversion`, `macd_momentum`, `bollinger_bands`, `dual_momentum`, `breakout`, `pairs_trading`. The `/backtest` slash command in the TUI lists additional **example** names for autocomplete; use the ids above (or `sigma backtest SYM` and read the error’s `available` list) for CLI runs.
+
+Run `sigma -h` for the exact option list on your install.
+
+---
+
+### TUI (full-screen terminal UI)
+
+**Layout:** Scrollable conversation, tool calls inline, composer at the bottom. Theme is a dark, low-distraction palette (Tokyo Night–inspired). Tickers such as `AAPL` or `$NVDA` are highlighted; a small badge can show the latest symbol as you type.
+
+**Keyboard**
+
+| Key | Action |
+| :--- | :--- |
+| **Enter** | Send the current line (natural language, or a `/` command). |
+| **Tab** | If the line starts with `/`, insert the **selected** slash command from the menu; otherwise append **ghost text** from Ollama completion when available. |
+| **Up** / **Down** | Move the highlight in the **slash command** menu (when `/` menu is open). |
+| **Ctrl+L** | Clear the chat transcript (same idea as `/clear`). |
+| **Ctrl+C** | Quit the app. |
+
+**Slash commands** (type `/` in the composer; use Tab to complete, `/help` for the full list with descriptions):
+
+| Command | Purpose |
+| :--- | :--- |
+| `/help` | List all slash commands with short help. |
+| `/shortcuts` | Show keyboard reference inside the app. |
+| `/status` | Markdown status: provider, model, Ollama, LEAN, keys (like `sigma --status`). |
+| `/keys` | Table of which API keys are set (not secret values). |
+| `/models` | Reference models by provider (like `sigma --list-models`). |
+| `/provider` | Show active provider; points to `sigma --provider`. |
+| `/model` | Show default model; optional extra text is echoed; points to `sigma --model`. |
+| `/backtest` | List example **strategy ids** (see also `sigma backtest -s`). |
+| `/tools` | List registered tools (names only). |
+| `/export` | Save the current chat to `~/.sigma/exports/sigma-chat-YYYYMMDD-HHMMSS.md`. |
+| `/clear` | Clear transcript (same as **Ctrl+L**). |
+| `/reload` | Reload the LLM router after you change keys or env. |
+| `/news SYMBOL` or `/digest …` | Headline digest; optional numeric limit, e.g. `/news AAPL 15`. |
+| `/quote SYMBOL` | Quick JSON quote for one symbol. |
+| `/setup-help` | Setup steps and links (keys, provider, model). |
+| `/compare`, `/chart`, `/report`, `/alert`, `/watchlist`, `/portfolio`, `/strategy`, `/preset` | Short tips: prefer natural language in chat or the matching `sigma` CLI (`compare`, `chart`, …). |
+
+**Without a leading `/`**, the input is treated as a **normal prompt** to the model (streaming reply, tools may run). The composer hint line summarizes: Tab complete, `/` for commands, Ctrl+L clear, Ctrl+C quit.
+
+If the LLM is not configured, a **setup gate** may appear with **Retry** (re-check) and **Continue anyway**.
 
 ---
 
@@ -83,10 +133,18 @@ cd sigma
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-# or: pip install -e ".[dev]"
+# Editable install with dev tools: pip install -e ".[dev]"
 ```
 
-Start the app:
+With **[uv](https://github.com/astral-sh/uv)** (optional):
+
+```bash
+cd sigma
+uv sync --extra dev
+uv run sigma --version
+```
+
+Start the app (see **Command reference > Launch** above):
 
 ```bash
 sigma
