@@ -1,14 +1,14 @@
 #!/bin/bash
-# Build script for Sigma
+# Build script for Ephemeral
 
 set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
-RELEASE_VERSION="3.7.2"
+RELEASE_VERSION="3.8.0"
 
 echo "========================================"
-echo "  Sigma v${RELEASE_VERSION} Build Script"
+echo "  Ephemeral v${RELEASE_VERSION} Build Script"
 echo "========================================"
 echo ""
 
@@ -27,7 +27,7 @@ cd "$PROJECT_DIR"
 # Clean previous builds
 echo ""
 echo "Cleaning previous builds..."
-rm -rf dist/ build/ *.egg-info sigma/*.egg-info
+rm -rf dist/ build/ *.egg-info ephemeral/*.egg-info
 
 # Build: prefer uv (avoids PEP 668 "externally managed" failures on many macOS Pythons)
 echo ""
@@ -56,13 +56,13 @@ echo ""
 echo "Outputs:"
 echo "  - dist/*.whl (Python package)"
 echo "  - dist/*.tar.gz (Source distribution)"
-echo "  - dist/Sigma.app (macOS application)"
+echo "  - dist/Ephemeral.app (macOS application)"
 echo ""
 echo "To install locally:"
 echo "  pip install dist/*.whl"
 echo ""
 echo "To install the app:"
-echo "  cp -r dist/Sigma.app /Applications/"
+echo "  cp -r dist/Ephemeral.app /Applications/"
 echo ""
 echo "Tip: install uv (https://github.com/astral-sh/uv) for reliable builds on PEP 668 systems."
 echo ""
