@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Textual app wiring and shared UI constants for Sigma v3.7.2."""
+"""Verify Textual app wiring and shared UI constants for Ephemeral v3.8.0."""
 
 import re
 import sys
@@ -8,33 +8,33 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 print("=" * 60)
-print("SIGMA v3.7.2 - UI VERIFICATION")
+print("SIGMA v3.8.0 - UI VERIFICATION")
 print("=" * 60)
 
 print("\n[1] Checking app components...")
 try:
-    from sigma.app import (
-        AssistantMessage,
-        SigmaApp,
+    from ephemeral.app import (
         SUGGESTIONS,
         SYSTEM_PROMPT,
+        WELCOME_BANNER,
+        AssistantMessage,
+        EphemeralApp,
         ToolMessage,
         UserMessage,
-        WELCOME_BANNER,
         __version__,
     )
 
     print(f"  [ok] App components imported - v{__version__}")
     print(f"  [ok] SUGGESTIONS: {len(SUGGESTIONS)} items")
     print(f"  [ok] SYSTEM_PROMPT length: {len(SYSTEM_PROMPT)} chars")
-    assert "3.7.2" in WELCOME_BANNER
+    assert "3.8.0" in WELCOME_BANNER
 except ImportError as e:
     print(f"  [FAIL] Import error: {e}")
     sys.exit(1)
 
 print("\n[2] Checking tool registry...")
 try:
-    from sigma.tools.registry import TOOL_REGISTRY, ToolDefinition, ToolExecutionResult
+    from ephemeral.tools.registry import TOOL_REGISTRY
 
     print("  [ok] Tool registry imported")
     print("  [ok] ToolExecutionResult dataclass available")
@@ -47,7 +47,7 @@ except ImportError as e:
 
 print("\n[3] Checking state management...")
 try:
-    from sigma.core.state import ConversationState, ConversationManager, Message, MessageRole, ToolCall
+    from ephemeral.core.state import ConversationState
 
     print("  [ok] State management imported")
 
@@ -63,7 +63,10 @@ except ImportError as e:
 
 print("\n[4] Checking config...")
 try:
-    from sigma.config import AVAILABLE_MODELS, ErrorCode, SigmaError, __version__ as config_version
+    from ephemeral.app import __version__ as app_v
+    from ephemeral.config import AVAILABLE_MODELS
+    from ephemeral.config import __version__ as cfg_v
+    from ephemeral.config import __version__ as config_version
 
     print(f"  [ok] Config imported - v{config_version}")
     print(f"  [ok] Providers: {list(AVAILABLE_MODELS.keys())}")
@@ -73,7 +76,7 @@ except ImportError as e:
 
 print("\n[5] Testing real data fetch (AAPL quote)...")
 try:
-    from sigma.tools import get_stock_quote
+    from ephemeral.tools import get_stock_quote
 
     quote = get_stock_quote("AAPL")
     if "error" not in quote:
@@ -87,7 +90,7 @@ except Exception as e:
 
 print("\n[6] Testing technical analysis...")
 try:
-    from sigma.tools import technical_analysis
+    from ephemeral.tools import technical_analysis
 
     ta = technical_analysis("SPY", "1mo")
     if "error" not in ta:
@@ -101,7 +104,7 @@ except Exception as e:
 
 print("\n[7] Checking Textual widgets...")
 ui_checks = {
-    "SigmaApp has CSS": hasattr(SigmaApp, "CSS"),
+    "EphemeralApp has CSS": hasattr(EphemeralApp, "CSS"),
     "UserMessage exists": UserMessage is not None,
     "AssistantMessage exists": AssistantMessage is not None,
     "ToolMessage exists": ToolMessage is not None,
@@ -112,7 +115,7 @@ for check, passed in ui_checks.items():
 
 print("\n[8] Checking keyboard bindings...")
 try:
-    bindings = SigmaApp.BINDINGS
+    bindings = EphemeralApp.BINDINGS
     binding_keys = [b.key if hasattr(b, "key") else b[0] for b in bindings]
     for key in ("ctrl+c", "ctrl+l"):
         if key in binding_keys:
@@ -123,12 +126,9 @@ except Exception as e:
     print(f"  [warn] Could not check bindings: {e}")
 
 print("\n[9] Checking version consistency...")
-from sigma.app import __version__ as app_v
-from sigma.config import __version__ as cfg_v
-
 print(f"  App version: {app_v}")
 print(f"  Config version: {cfg_v}")
-version_match = app_v == cfg_v == "3.7.2"
+version_match = app_v == cfg_v == "3.8.0"
 print(f"  [{'ok' if version_match else 'FAIL'}] Versions {'match' if version_match else 'mismatch'}")
 
 print("\n[10] Checking for no emojis in WELCOME_BANNER...")
@@ -146,5 +146,5 @@ else:
 print("\n" + "=" * 60)
 print("[OK] UI verification complete")
 print("=" * 60)
-print("\nLaunch:  python -m sigma")
+print("\nLaunch:  python -m ephemeral")
 print("TUI:     Ctrl+C quit, Ctrl+L clear chat")
