@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sigma-terminal"
-version = "3.7.2"
-description = "Sigma - Finance Research Agent"
+name = "ephemeral-terminal"
+version = "3.8.0"
+description = "Ephemeral - Finance Research Agent"
 readme = "README.md"
 license = {text = "Proprietary"}
 authors = [{ name = "Desenyon" }]
@@ -75,23 +75,23 @@ lean = [
     "lean>=1.0.0",  # LEAN CLI for QuantConnect backtesting
 ]
 all = [
-    "sigma-terminal[dev,lean]",
+    "ephemeral-terminal[dev,lean]",
 ]
 
 [project.scripts]
-sigma = "sigma.cli:main"
-sigma-setup = "sigma.setup:run_setup"
+ephemeral = "ephemeral.cli:main"
+ephemeral-setup = "ephemeral.setup:run_setup"
 
 [project.gui-scripts]
-sigma-app = "sigma.app:launch"
+ephemeral-app = "ephemeral.app:launch"
 
 [project.urls]
-Homepage = "https://github.com/desenyon/sigma"
-Documentation = "https://github.com/desenyon/sigma/wiki"
-Repository = "https://github.com/desenyon/sigma"
+Homepage = "https://github.com/desenyon/ephemeral"
+Documentation = "https://github.com/desenyon/ephemeral/wiki"
+Repository = "https://github.com/desenyon/ephemeral"
 
 [tool.hatch.build.targets.wheel]
-packages = ["sigma"]
+packages = ["ephemeral"]
 
 [tool.black]
 line-length = 100
