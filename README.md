@@ -1,205 +1,225 @@
 <div align="center">
 
-# Sigma
+# Ephemeral
 
-### Terminal-native financial research
+### Terminal-native financial research, rebuilt for `v3.8.0`
 
-[![Version](https://img.shields.io/badge/version-3.7.2-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://github.com/desenyon/sigma)
-[![UI](https://img.shields.io/badge/UI-Textual-7c3aed?style=for-the-badge)](https://textual.textualize.io/)
+[![Version](https://img.shields.io/badge/version-3.8.0-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://github.com/desenyon/ephemeral)
+[![Interface](https://img.shields.io/badge/interface-Ink%20%2B%20Textual-0f172a?style=for-the-badge)](https://github.com/vadimdemedes/ink)
 [![Python](https://img.shields.io/badge/python-3.11+-0f172a?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
-A keyboard-driven research environment that pairs **multi-provider LLMs** with **market data and tooling** in the terminal. Configure keys locally, choose cloud or local models, and stay in flow without leaving the shell.
+Ephemeral is a keyboard-first research environment for market analysis, thesis development, and local-or-cloud LLM workflows. It combines a modern Ink shell, a legacy Textual fallback, market-data tools, and provider-aware setup so you can stay inside the terminal for the entire research loop.
 
 </div>
 
 ---
 
+## What changed in 3.8
+
+`v3.8.0` is a product-quality pass over the terminal experience:
+
+- The Ink UI was redesigned around a cleaner workspace, compact sidebar, and dedicated prompt dock.
+- Input handling is more reliable: typing always returns focus to the prompt, the cursor behaves consistently, and requests no longer make the shell feel frozen.
+- The layout falls back earlier on smaller terminals so content stays inside the frame instead of clipping or colliding.
+- Ollama onboarding is more accurate: setup can now adopt already-installed local models instead of assuming every machine needs a fresh pull.
+- Versioning is centralized and release changes are now logged in [`CHANGELOG.md`](/Users/naitikgupta/Projects/ephemeral/CHANGELOG.md).
+
+---
+
+## Product surfaces
+
+Ephemeral ships with three ways to work:
+
+| Surface | Purpose |
+| :--- | :--- |
+| `ephemeral` | The default Ink command center for interactive research, setup inspection, and workflow switching. |
+| `ephemeral --legacy-ui` | The older Textual experience for teams that still prefer the previous full-screen shell. |
+| `ephemeral <command>` | One-shot CLI commands for scripting, automation, and quick checks. |
+
+Configuration, exports, charts, and session artifacts live under `~/.ephemeral/`.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/desenyon/ephemeral.git
+cd ephemeral
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+npm install --prefix ephemeral/ink_ui
+pip install -e ".[dev]"
+ephemeral
+```
+
+With `uv`:
+
+```bash
+git clone https://github.com/desenyon/ephemeral.git
+cd ephemeral
+uv sync --extra dev
+npm install --prefix ephemeral/ink_ui
+uv run ephemeral
+```
+
+---
+
+## The 3.8 Ink shell
+
+The default interface is now intentionally closer to modern terminal products such as Warp or Feynman in spirit: fewer permanent boxes, stronger hierarchy, and a durable input surface.
+
+### Core interaction model
+
+- One dominant **workspace** pane for the selected result.
+- One compact **sidebar** for activity and mode/navigation.
+- One always-available **prompt dock** at the bottom.
+
+### Keyboard model
+
+- `Tab`: cycle focus across modes, activity, workspace, and prompt.
+- `↑` / `↓` or `j` / `k`: move within the focused rail or scroll the workspace.
+- `[` / `]`: page the workspace output.
+- `d`: toggle rendered vs raw payloads.
+- `Esc`: clear the current prompt and return focus to the dock.
+- `Ctrl+C`: quit.
+
+### Prompt behavior
+
+- Typing from any pane returns focus to the prompt immediately.
+- The prompt shows a live caret without appending the cursor to placeholder text.
+- While a request runs, the shell remains navigable and shows the active job in the chrome.
+
+---
+
+## Setup and providers
+
+Ephemeral supports both cloud providers and local models.
+
+### Cloud providers
+
+Set a key with:
+
+```bash
+ephemeral --setkey openai <your-key>
+ephemeral --setkey anthropic <your-key>
+ephemeral --setkey google <your-key>
+```
+
+Then choose a default:
+
+```bash
+ephemeral --provider openai
+ephemeral --model gpt-5.4
+```
+
+### Local Ollama flow
+
+`v3.8.0` improves the local-model path:
+
+- If Ollama is reachable and you already have models installed, setup offers to bind one immediately.
+- Selecting a local model persists `DEFAULT_PROVIDER`, `DEFAULT_MODEL`, `OLLAMA_MODEL`, and `OLLAMA_HOST` together.
+- Status output now reports whether the active default model is actually available locally.
+
+Common Ollama flow:
+
+```bash
+ollama serve
+ollama pull qwen3.5:8b
+ephemeral --provider ollama
+ephemeral --model qwen3.5:8b
+ephemeral --status
+```
+
+You can also run:
+
+```bash
+ephemeral --setup
+```
+
+to walk through installation, model binding, and key verification interactively.
+
+---
+
 ## Command reference
 
-Sigma has two surfaces: a **full-screen TUI** (Textual) for interactive research, and a **CLI** for one-shot commands, health checks, and scripting. Configuration and exports live under **`~/.sigma/`** (for example `config.env`, `charts/`, `exports/`).
-
-### Launch
-
-| How | Notes |
-| :--- | :--- |
-| `sigma` | Default: opens the TUI (splash + quick reference, then chat). |
-| `python -m sigma` | Same as above. |
-| `sigma-app` | **macOS GUI script** (see `[project.gui-scripts]` in `pyproject.toml`): launches the packaged app entry when installed. |
-
-On **first run**, an interactive setup wizard may run; you can also use `sigma --setup` or `sigma-setup` anytime.
-
----
-
-### CLI (terminal)
-
-Global options (run before or without a subcommand):
-
-| Option | Purpose |
-| :--- | :--- |
-| `-h`, `--help` | Full argparse help and examples. |
-| `-v`, `--version` | Show version (Rich banner unless `--no-ui`). |
-| `--no-ui` | With `--version`: print plain `sigma x.y.z` only. |
-| `--setup` | Interactive setup wizard. |
-| `--setkey PROVIDER KEY` | Save a key in `~/.sigma/config.env` (`google`, `openai`, `anthropic`, `groq`, `xai`, `polygon`, `alphavantage`, `exa`). |
-| `--provider {google,openai,anthropic,groq,xai,ollama}` | Set default AI provider. |
-| `--model MODEL` | Set default model id. |
-| `--list-models` | Print bundled model suggestions by provider. |
-| `--status` | Config summary: provider, model, Ollama, LEAN hints, key presence. |
-
-Subcommands:
+### Launch and configuration
 
 | Command | Purpose |
 | :--- | :--- |
-| `sigma ask QUERY…` | One-shot LLM call **with tools** (non-interactive); uses your default provider/model. |
-| `sigma quote SYM [SYM …]` | Table of quotes (price, change, volume). |
-| `sigma chart SYM` | Candlestick chart written under `~/.sigma/charts` (yfinance). Use `--period` (default `6mo`), `-o` / `--output` to copy PNG elsewhere. |
-| `sigma backtest SYM` | Built-in backtest engine. `-s` / `--strategy` (default `sma_crossover`), `--period` (default `1y`). |
-| `sigma compare SYM [SYM …]` | Compare returns, vol, Sharpe, P/E, etc. |
-| `sigma news SYM` | Unified headline digest (Polygon / Alpha Vantage / Exa / Yahoo depending on keys). `-n` / `--limit` for max articles. |
-| `sigma doctor` | Health check: Python deps, `ollama` / `lean` on `PATH`, API key **presence** (not values). |
-| `sigma tools` | Print all registered LLM tool names (same registry the TUI uses). |
+| `ephemeral` | Launch the default Ink shell. |
+| `ephemeral --legacy-ui` | Launch the legacy Textual shell. |
+| `ephemeral --ink-ui` | Force Ink and fail instead of falling back. |
+| `ephemeral --setup` | Run the setup wizard. |
+| `ephemeral --status` | Show provider, model, key presence, and dependency health. |
+| `ephemeral --list-models` | Print bundled model suggestions by provider. |
+| `ephemeral --provider <provider>` | Persist the default provider. |
+| `ephemeral --model <id>` | Persist the default model id. |
+| `ephemeral --setkey <provider> <key>` | Save an API key in `~/.ephemeral/config.env`. |
 
-**`sigma backtest -s` strategy ids** (implemented in the built-in engine): `sma_crossover`, `rsi_mean_reversion`, `macd_momentum`, `bollinger_bands`, `dual_momentum`, `breakout`, `pairs_trading`. The `/backtest` slash command in the TUI lists additional **example** names for autocomplete; use the ids above (or `sigma backtest SYM` and read the error’s `available` list) for CLI runs.
-
-Run `sigma -h` for the exact option list on your install.
-
----
-
-### TUI (full-screen terminal UI)
-
-**Layout:** Scrollable conversation, tool calls inline, composer at the bottom. Theme is a dark, low-distraction palette (Tokyo Night–inspired). Tickers such as `AAPL` or `$NVDA` are highlighted; a small badge can show the latest symbol as you type.
-
-**Keyboard**
-
-| Key | Action |
-| :--- | :--- |
-| **Enter** | Send the current line (natural language, or a `/` command). |
-| **Tab** | If the line starts with `/`, insert the **selected** slash command from the menu; otherwise append **ghost text** from Ollama completion when available. |
-| **Up** / **Down** | Move the highlight in the **slash command** menu (when `/` menu is open). |
-| **Ctrl+L** | Clear the chat transcript (same idea as `/clear`). |
-| **Ctrl+C** | Quit the app. |
-
-**Slash commands** (type `/` in the composer; use Tab to complete, `/help` for the full list with descriptions):
+### Research workflows
 
 | Command | Purpose |
 | :--- | :--- |
-| `/help` | List all slash commands with short help. |
-| `/shortcuts` | Show keyboard reference inside the app. |
-| `/status` | Markdown status: provider, model, Ollama, LEAN, keys (like `sigma --status`). |
-| `/keys` | Table of which API keys are set (not secret values). |
-| `/models` | Reference models by provider (like `sigma --list-models`). |
-| `/provider` | Show active provider; points to `sigma --provider`. |
-| `/model` | Show default model; optional extra text is echoed; points to `sigma --model`. |
-| `/backtest` | List example **strategy ids** (see also `sigma backtest -s`). |
-| `/tools` | List registered tools (names only). |
-| `/export` | Save the current chat to `~/.sigma/exports/sigma-chat-YYYYMMDD-HHMMSS.md`. |
-| `/clear` | Clear transcript (same as **Ctrl+L**). |
-| `/reload` | Reload the LLM router after you change keys or env. |
-| `/news SYMBOL` or `/digest …` | Headline digest; optional numeric limit, e.g. `/news AAPL 15`. |
-| `/quote SYMBOL` | Quick JSON quote for one symbol. |
-| `/setup-help` | Setup steps and links (keys, provider, model). |
-| `/compare`, `/chart`, `/report`, `/alert`, `/watchlist`, `/portfolio`, `/strategy`, `/preset` | Short tips: prefer natural language in chat or the matching `sigma` CLI (`compare`, `chart`, …). |
-
-**Without a leading `/`**, the input is treated as a **normal prompt** to the model (streaming reply, tools may run). The composer hint line summarizes: Tab complete, `/` for commands, Ctrl+L clear, Ctrl+C quit.
-
-If the LLM is not configured, a **setup gate** may appear with **Retry** (re-check) and **Continue anyway**.
+| `ephemeral ask QUERY...` | Run a one-shot LLM request with tools. |
+| `ephemeral quote AAPL MSFT` | Fetch quote snapshots. |
+| `ephemeral news NVDA -n 12` | Produce a news digest. |
+| `ephemeral compare META GOOGL AMZN` | Compare returns, vol, and quality metrics. |
+| `ephemeral chart SPY --period 6mo` | Save a chart artifact. |
+| `ephemeral backtest AAPL -s sma_crossover --period 2y` | Run the built-in backtest engine. |
+| `ephemeral doctor` | Run a dependency and environment check. |
+| `ephemeral tools` | List registered tool names. |
 
 ---
 
-## Capabilities
+## Architecture
 
-- **Models**: Route requests through supported providers (e.g. OpenAI, Anthropic, Google Gemini, Groq, xAI) or **Ollama** locally, via the LLM router and your config.
-- **Data & tools**: Stock quotes, history, comparisons, technicals, and integrations such as **Polygon.io**, **Alpha Vantage**, and **Exa** when keys are set.
-- **Backtesting**: Built-in strategies over historical data (yfinance-backed engine); optional **QuantConnect LEAN** CLI for advanced workflows when installed.
-- **Privacy posture**: API keys and config live under your user account (e.g. `~/.sigma/config.env`); choose what you enable.
-
----
-
-## Requirements
-
-- **Python 3.11+**
-- **Ollama** (optional, recommended for local models)
-- **LEAN CLI** (optional, for LEAN-based backtests)
-
----
-
-## Installation
-
-Use a virtual environment (recommended):
-
-```bash
-git clone https://github.com/desenyon/sigma.git
-cd sigma
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-# Editable install with dev tools: pip install -e ".[dev]"
-```
-
-With **[uv](https://github.com/astral-sh/uv)** (optional):
-
-```bash
-cd sigma
-uv sync --extra dev
-uv run sigma --version
-```
-
-Start the app (see **Command reference > Launch** above):
-
-```bash
-sigma
-# or
-python -m sigma
-```
-
----
-
-## Configuration
-
-Environment variables and `~/.sigma/config.env` control providers and models. See `.env.example` for variable names (e.g. `OPENAI_API_KEY`, `POLYGON_API_KEY`, `DEFAULT_MODEL`, `OLLAMA_HOST`).
-
-### Model IDs (2026 reference)
-
-Defaults in code target current-tier APIs. Override with `DEFAULT_MODEL` or `sigma --model <id>`.
-
-| Provider | Default id | Notes |
-| :--- | :--- | :--- |
-| Google | `gemini-3.1-pro` | Flash: `gemini-3-flash` |
-| OpenAI | `gpt-5.4` | Also: `gpt-5.2`, `gpt-5`, `o3-preview`, … |
-| Anthropic | `claude-sonnet-4-6` | Opus: `claude-opus-4-6` |
-| Groq | `llama-3.3-70b-versatile` | Hosted Llama / Mixtral on Groq |
-| xAI | `grok-4` | Fast: `grok-4-mini` |
-| Ollama | `qwen3.5:8b` | Local; run `sigma --list-models` for the full suggestion list |
-
-Exact API names change with providers; if a call fails, switch to another id from `sigma --list-models` or your provider’s docs.
-
----
-
-## Architecture (overview)
-
-| Layer | Role |
+| Layer | Responsibility |
 | :--- | :--- |
-| **TUI** | Textual application: chat, tool messages, input widgets |
-| **CLI** | `argparse` + Rich: doctor, status, one-shot commands |
-| **LLM** | Router and provider clients; tool calls from the model |
-| **Tools** | Registry exposing data and analysis functions to the model |
-| **Backtest** | Python engine and optional LEAN integration |
+| `ephemeral/ink_ui` | React + Ink shell for the default interactive experience |
+| `ephemeral/ink_bridge.py` | Structured bridge between the Ink UI and Python workflows |
+| `ephemeral/cli.py` | CLI entry point and launcher orchestration |
+| `ephemeral/setup_agent.py` | Setup wizard for providers, keys, and local models |
+| `ephemeral/llm` | Router and provider implementations |
+| `ephemeral/tools` | Tool registry and market-data integrations |
+| `ephemeral/backtest` | Built-in backtesting engine and related workflows |
+
+The release number is now centralized in [`ephemeral/version.py`](/Users/naitikgupta/Projects/ephemeral/ephemeral/version.py) to keep package metadata, runtime banners, and setup surfaces aligned.
 
 ---
 
-## Contributing
+## Development
 
-Contributions are welcome. Open an issue or pull request on the [repository](https://github.com/desenyon/sigma).
+### Quality gates
+
+For the 3.8 UI and setup work, the primary checks are:
+
+```bash
+npm --prefix ephemeral/ink_ui run typecheck
+npm --prefix ephemeral/ink_ui run smoke
+.venv/bin/python -m pytest tests/test_ink_bridge.py tests/test_setup_agent.py -q
+```
+
+### Build
+
+```bash
+./scripts/build.sh
+```
+
+This produces:
+
+- Python distributions under `dist/`
+- A macOS app bundle via `scripts/create_app.py`
+
+---
+
+## Release notes
+
+- Human-readable release history lives in [`CHANGELOG.md`](/Users/naitikgupta/Projects/ephemeral/CHANGELOG.md).
+- Setup and command examples in this README reflect `v3.8.0`.
 
 ---
 
 ## License
 
-See [LICENSE](LICENSE).
-
----
-
-## Links
-
-- [Repository](https://github.com/desenyon/sigma)
-- [Documentation (wiki)](https://github.com/desenyon/sigma/wiki)
+See [LICENSE](/Users/naitikgupta/Projects/ephemeral/LICENSE).
