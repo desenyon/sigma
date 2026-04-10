@@ -207,6 +207,8 @@ def _setup_help_payload() -> Dict[str, Any]:
 
 
 def _reload_payload() -> Dict[str, Any]:
+    from ephemeral.llm import get_router
+
     settings = get_settings()
     health = collect_service_health(settings, router_factory=lambda: get_router(settings, force=True))
     status = _status_payload()
