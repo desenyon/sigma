@@ -82,6 +82,12 @@ type LineRow = {
 	bold?: boolean;
 };
 
+type LineSegment = {
+	text: string;
+	color?: string;
+	bold?: boolean;
+};
+
 const APP_VERSION = '3.8.0';
 
 const actions: ActionDefinition[] = [
@@ -367,6 +373,101 @@ const padRows = (rows: LineRow[], height: number) => {
 		padded.push({text: ''});
 	}
 	return padded.slice(0, height);
+};
+const pickGroupColor = (group: ActionDefinition['group']) => {
+	if (group === 'Research') return 'cyanBright';
+	if (group === 'Build') return 'yellow';
+	return 'green';
+};
+const renderStyledLine = (line: string, accentColor = 'cyanBright'): React.ReactNode => {
+	const trimmed = line.trim();
+	if (!trimmed) {
+		return <Text wrap="truncate-end">{' '}</Text>;
+	}
+
+	if (/^\[ok\]/i.test(trimmed)) {
+		return (
+			<Text wrap="truncate-end">
+				<Text color="green" bold>
+					[ok]
+				</Text>
+				<Text color="gray"> {trimmed.replace(/^\[ok\]\s*/i, '')}</Text>
+			</Text>
+		);
+	}
+
+	if (/^\[x\]/i.test(trimmed)) {
+		return (
+			<Text wrap="truncate-end">
+				<Text color="red" bold>
+					[x]
+				</Text>
+				<Text color="gray"> {trimmed.replace(/^\[x\]\s*/i, '')}</Text>
+			</Text>
+		);
+	}
+
+	if (/^\d+\.\s/.test(trimmed)) {
+		const [, marker, rest] = trimmed.match(/^(\d+\.)\s+(.*)$/) ?? [];
+		if (marker && rest) {
+			return (
+				<Text wrap="truncate-end">
+					<Text color={accentColor} bold>
+						{marker}
+					</Text>
+					<Text color="white"> {rest}</Text>
+				</Text>
+			);
+		}
+	}
+
+	if (/^-\s/.test(trimmed)) {
+		return (
+			<Text wrap="truncate-end">
+				<Text color={accentColor} bold>
+					{'>'}
+				</Text>
+				<Text color="white"> {trimmed.replace(/^-\s*/, '')}</Text>
+			</Text>
+				);
+	}
+
+	if (/^[A-Z][A-Za-z ]+$/.test(trimmed) && trimmed.length < 28) {
+		return (
+			<Text color={accentColor} bold wrap="truncate-end">
+				{trimmed}
+			</Text>
+		);
+	}
+
+	const keyValueMatch = line.match(/^(\s*[A-Za-z][A-Za-z0-9 /_-]{1,20})(\s{2,}|\s*:\s)(.+)$/);
+	if (keyValueMatch) {
+		const [, label, separator, value] = keyValueMatch;
+		return (
+			<Text wrap="truncate-end">
+				<Text color="gray">{label.trimEnd()}</Text>
+				<Text color="gray">{separator.includes(':') ? ': ' : '  '}</Text>
+				<Text color="white">{value}</Text>
+			</Text>
+		);
+	}
+
+	const slashIndex = line.indexOf('/');
+	if (slashIndex >= 0 && /\/[a-z]/i.test(line.slice(slashIndex))) {
+		const match = line.match(/(.*?)(\/[A-Za-z0-9_-]+.*)/);
+		if (match) {
+			return (
+				<Text wrap="truncate-end">
+					<Text color="white">{match[1]}</Text>
+					<Text color={accentColor} bold>
+						{match[2]}
+					</Text>
+				</Text>
+			);
+		}
+	}
+
+	return <Text color="white" wrap="truncate-end">{line}</Text>;
 };
 
 const wrapText = (input: string, width: number): string[] => {
@@ -1295,10 +1396,12 @@ const App = () => {
 	const sidebarFocused = focusPane === 'actions' || focusPane === 'history';
 	const dividerWidth = Math.min(terminalWidth - 8, 72);
 	const headerTone = busy ? 'yellow' : statusLoading ? 'blue' : 'green';
+	const actionAccent = pickGroupColor(selectedAction.group);
+	const topStatusLine = `${selectedAction.group} · ${selectedAction.label} · ${metrics.localReady ? 'local ready' : 'setup path'}`;
 
 	const sidebarRows = useMemo(() => {
 		const rows: LineRow[] = [
-			{text: 'NAVIGATOR', color: sidebarFocused ? 'cyanBright' : 'gray', bold: true},
+			{text: 'NAVIGATOR', color: sidebarFocused ? actionAccent : 'gray', bold: true},
 			{text: `${metrics.provider} · ${truncate(String(metrics.model), 20)}`, color: 'gray'},
 			{text: ''},
 		];
@@ -1306,14 +1409,14 @@ const App = () => {
 		for (const group of ['Research', 'Build', 'Ops'] as const) {
 			rows.push({
 				text: group.toUpperCase(),
-				color: selectedAction.group === group ? 'cyanBright' : 'gray',
+				color: selectedAction.group === group ? pickGroupColor(group) : 'gray',
 				bold: true,
 			});
 			for (const action of actions.filter(item => item.group === group)) {
 				const selected = action.id === selectedAction.id;
 				rows.push({
-					text: `${selected ? '›' : ' '} ${action.label}`,
-					color: selected ? 'cyanBright' : 'white',
+					text: `${selected ? '>' : ' '} ${action.label}`,
+					color: selected ? pickGroupColor(group) : 'white',
 					bold: selected,
 				});
 			}
@@ -1324,7 +1427,7 @@ const App = () => {
 		if (activityRows.length) {
 			for (const row of activityRows) {
 				rows.push({
-					text: `${row.selected ? '›' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`,
+					text: `${row.selected ? '>' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`,
 					color: row.selected ? 'cyanBright' : row.error ? 'red' : 'gray',
 					bold: row.selected,
 				});
@@ -1334,13 +1437,13 @@ const App = () => {
 		}
 
 		rows.push({text: ''});
-		rows.push({text: `${metrics.localReady ? 'Local ready' : 'Local warming'} · ${metrics.state}`, color: 'gray'});
+		rows.push({text: `${metrics.localReady ? 'Local ready' : 'Local warming'} · ${metrics.state}`, color: metrics.localReady ? 'green' : 'yellow'});
 		if (metrics.host !== 'n/a') {
 			rows.push({text: truncate(metrics.host, sidebarWidth - 1), color: 'gray'});
 		}
 		rows.push({text: `Focus ${focusPane} · ${selectedEntry ? detailMode : 'workspace'}`, color: 'gray'});
 		return padRows(rows, bodyHeight);
-	}, [activityRows, bodyHeight, focusPane, metrics.host, metrics.localReady, metrics.model, metrics.provider, metrics.state, selectedAction.group, selectedAction.id, selectedEntry, detailMode, sidebarFocused, sidebarWidth]);
+	}, [actionAccent, activityRows, bodyHeight, focusPane, metrics.host, metrics.localReady, metrics.model, metrics.provider, metrics.state, selectedAction.group, selectedAction.id, selectedEntry, detailMode, sidebarFocused, sidebarWidth]);
 
 	const workspaceRows = useMemo(
 		() =>
@@ -1393,7 +1496,7 @@ const App = () => {
 				</Box>
 				<Box flexDirection="column" alignItems={layoutMode === 'desktop' ? 'flex-end' : 'flex-start'}>
 					<Text color={headerTone}>{`${animationFrames[frameIndex]} ${shellStatus}`}</Text>
-					<Text color="gray">{`${selectedAction.group} · ${selectedAction.label} · ${metrics.localReady ? 'local ready' : 'cloud or setup path'}`}</Text>
+					<Text color="gray">{topStatusLine}</Text>
 				</Box>
 			</Box>
 
@@ -1417,18 +1520,30 @@ const App = () => {
 					</Box>
 					<Box width={mainWidth} flexDirection="column">
 						{workspaceRows.map((row, index) => (
-							<Text key={`workspace-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
-								{row.text || ' '}
-							</Text>
+							<Box key={`workspace-${index}`} height={1}>
+								{row.color || row.bold ? (
+									<Text color={row.color} bold={row.bold} wrap="truncate-end">
+										{row.text || ' '}
+									</Text>
+								) : (
+									renderStyledLine(row.text, actionAccent)
+								)}
+							</Box>
 						))}
 					</Box>
 				</Box>
 			) : (
 				<Box flexDirection="column">
 					{workspaceRows.map((row, index) => (
-						<Text key={`workspace-stacked-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
-							{row.text || ' '}
-						</Text>
+						<Box key={`workspace-stacked-${index}`} height={1}>
+							{row.color || row.bold ? (
+								<Text color={row.color} bold={row.bold} wrap="truncate-end">
+									{row.text || ' '}
+								</Text>
+							) : (
+								renderStyledLine(row.text, actionAccent)
+							)}
+						</Box>
 					))}
 					<Divider width={dividerWidth} />
 					{sidebarRows.slice(0, Math.min(sidebarRows.length, 16)).map((row, index) => (
@@ -1443,18 +1558,18 @@ const App = () => {
 
 			<Box flexDirection="column">
 				<Box justifyContent="space-between">
-					<Text color={focusPane === 'input' ? 'cyanBright' : 'white'} bold>
+					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
 						{selectedAction.label}
 					</Text>
 					<Text color={busy ? 'yellow' : 'gray'}>{`${promptStatus} · Enter run`}</Text>
 				</Box>
 				<Text>
-					<Text color={focusPane === 'input' ? 'cyanBright' : 'gray'}>› </Text>
+					<Text color={focusPane === 'input' ? actionAccent : 'gray'}>{'> '}</Text>
 					{input ? <Text>{input}</Text> : null}
 					{focusPane === 'input' ? <Text color={promptCursorColor}>{promptCursor}</Text> : null}
 					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
-				<Text color="gray">{selectedAction.hint}</Text>
+				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
 				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output</Text>
 			</Box>
 		</Box>
