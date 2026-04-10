@@ -8,7 +8,7 @@
 [![Interface](https://img.shields.io/badge/interface-Ink%20%2B%20Textual-0f172a?style=for-the-badge)](https://github.com/vadimdemedes/ink)
 [![Python](https://img.shields.io/badge/python-3.11+-0f172a?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
-Ephemeral is a keyboard-first research environment for market analysis, thesis development, and local-or-cloud LLM workflows. It combines a modern Ink shell, a legacy Textual fallback, market-data tools, and provider-aware setup so you can stay inside the terminal for the entire research loop.
+Ephemeral is a keyboard-first research environment for market analysis, thesis development, and local-or-cloud LLM workflows. It combines a Claude-Code-style Ink shell, a legacy Textual fallback, market-data tools, and provider-aware setup so you can stay inside the terminal for the entire research loop.
 
 </div>
 
@@ -20,6 +20,7 @@ Ephemeral is a keyboard-first research environment for market analysis, thesis d
 
 - The Ink UI was redesigned around a cleaner workspace, compact sidebar, and dedicated prompt dock.
 - Input handling is more reliable: typing always returns focus to the prompt, the cursor behaves consistently, and requests no longer make the shell feel frozen.
+- The composer is more usable: when it is empty, `↑` and `↓` switch actions directly so the shell no longer feels static.
 - The layout falls back earlier on smaller terminals so content stays inside the frame instead of clipping or colliding.
 - Ollama onboarding is more accurate: setup can now adopt already-installed local models instead of assuming every machine needs a fresh pull.
 - Versioning is centralized and release changes are now logged in [`CHANGELOG.md`](/Users/naitikgupta/Projects/ephemeral/CHANGELOG.md).
@@ -67,13 +68,13 @@ uv run ephemeral
 
 ## The 3.8 Ink shell
 
-The default interface is now intentionally closer to modern terminal products such as Warp or Feynman in spirit: fewer permanent boxes, stronger hierarchy, and a durable input surface.
+The default interface is now intentionally closer to Claude Code in structure, but customized for Ephemeral research workflows: one navigator, one dominant workspace, and one durable composer.
 
 ### Core interaction model
 
 - One dominant **workspace** pane for the selected result.
-- One compact **sidebar** for activity and mode/navigation.
-- One always-available **prompt dock** at the bottom.
+- One compact **navigator** for actions, session state, and recent runs.
+- One always-available **composer** at the bottom.
 
 ### Keyboard model
 
