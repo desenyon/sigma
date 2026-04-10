@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Box, Newline, render, Text, useApp, useInput, useStdin, useStdout} from 'ink';
+import {Box, render, Text, useApp, useInput, useStdin, useStdout} from 'ink';
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,6 +43,7 @@ type BridgeRequest = {
 
 type BridgeEnvelope = {
 	ok: boolean;
+	id?: string;
 	action?: string;
 	data?: any;
 	error?: string;
@@ -73,6 +74,12 @@ type ActivityRow = {
 	timestamp: string;
 	selected: boolean;
 	error?: boolean;
+};
+
+type LineRow = {
+	text: string;
+	color?: string;
+	bold?: boolean;
 };
 
 const APP_VERSION = '3.8.0';
@@ -353,6 +360,14 @@ const formatStructuredLines = (value: unknown, indent = 0): string[] => {
 };
 const formatStructuredBlock = (value: unknown) => formatStructuredLines(value).join('\n');
 const joinSections = (...sections: Array<string | undefined>) => sections.filter(Boolean).join('\n\n');
+const repeat = (character: string, count: number) => character.repeat(Math.max(0, count));
+const padRows = (rows: LineRow[], height: number) => {
+	const padded = [...rows];
+	while (padded.length < height) {
+		padded.push({text: ''});
+	}
+	return padded.slice(0, height);
+};
 
 const wrapText = (input: string, width: number): string[] => {
 	const lines = input.replace(/\t/g, '  ').split('\n');
@@ -409,18 +424,6 @@ const buildExportHistory = (history: HistoryEntry[]) =>
 			body: entry.body,
 			error: entry.error ?? '',
 		}));
-
-const actionRowsForGroup = (group: ActionDefinition['group'], selectedIndex: number) =>
-	actions
-		.filter(action => action.group === group)
-		.map(action => {
-			const index = actions.findIndex(candidate => candidate.id === action.id);
-			return {
-				id: action.id,
-				label: `${index === selectedIndex ? '▸' : ' '} ${action.label}`,
-				selected: index === selectedIndex,
-			};
-		});
 
 const parseSlashCommand = (raw: string): BridgeRequest | null => {
 	const trimmed = raw.trim();
@@ -559,48 +562,149 @@ const requestForAction = (selectedAction: ActionDefinition, rawInput: string): B
 	}
 };
 
-const invokeBridge = async (request: BridgeRequest): Promise<BridgeEnvelope> =>
-	new Promise((resolve, reject) => {
-		const child = spawn(pythonExecutable, ['-m', 'ephemeral.ink_bridge'], {
-			cwd: projectRoot,
-			env: process.env,
-			stdio: ['pipe', 'pipe', 'pipe'],
+type PendingBridgeRequest = {
+	resolve: (result: BridgeEnvelope) => void;
+	reject: (error: Error) => void;
+};
+
+class PersistentBridgeClient {
+	private child = spawn(pythonExecutable, ['-m', 'ephemeral.ink_bridge', '--server'], {
+		cwd: projectRoot,
+		env: process.env,
+		stdio: ['pipe', 'pipe', 'pipe'],
+	});
+
+	private buffer = '';
+	private stderr = '';
+	private nextId = 0;
+	private closed = false;
+	private pending = new Map<string, PendingBridgeRequest>();
+
+	constructor() {
+		this.child.stdout.on('data', chunk => {
+			this.buffer += String(chunk);
+			this.flushBuffer();
 		});
 
-		let stdout = '';
-		let stderr = '';
-
-		child.stdout.on('data', chunk => {
-			stdout += String(chunk);
+		this.child.stderr.on('data', chunk => {
+			this.stderr += String(chunk);
 		});
 
-		child.stderr.on('data', chunk => {
-			stderr += String(chunk);
+		this.child.on('error', error => {
+			this.failAll(error.message);
 		});
 
-		child.on('error', reject);
-		child.on('close', code => {
-			if (!stdout.trim()) {
-				reject(new Error(stderr.trim() || `Bridge exited with code ${code ?? 'unknown'}`));
-				return;
+		this.child.on('close', code => {
+			this.closed = true;
+			if (bridgeClient === this) {
+				bridgeClient = null;
 			}
+			this.failAll(this.stderr.trim() || `Bridge exited with code ${code ?? 'unknown'}`);
+		});
+	}
 
-			try {
-				const parsed = JSON.parse(stdout) as BridgeEnvelope;
-				if (code && !parsed.ok) {
-					reject(new Error(parsed.error ?? (stderr.trim() || `Bridge exited with code ${code}`)));
+	isClosed() {
+		return this.closed;
+	}
+
+	request(request: BridgeRequest): Promise<BridgeEnvelope> {
+		if (this.closed || this.child.stdin.destroyed) {
+			return Promise.reject(new Error('Bridge is not available.'));
+		}
+
+		const id = `bridge-${++this.nextId}`;
+		return new Promise((resolve, reject) => {
+			this.pending.set(id, {resolve, reject});
+			this.child.stdin.write(`${JSON.stringify({id, payload: request})}\n`, error => {
+				if (!error) {
 					return;
 				}
-
-				resolve(parsed);
-			} catch {
-				reject(new Error(`Invalid bridge response: ${stdout}\n${stderr}`));
-			}
+				this.pending.delete(id);
+				reject(error);
+			});
 		});
+	}
 
-		child.stdin.write(JSON.stringify(request));
-		child.stdin.end();
-	});
+	close() {
+		if (this.closed) {
+			return;
+		}
+
+		this.closed = true;
+		this.child.kill();
+	}
+
+	private flushBuffer() {
+		let newlineIndex = this.buffer.indexOf('\n');
+		while (newlineIndex >= 0) {
+			const line = this.buffer.slice(0, newlineIndex).trim();
+			this.buffer = this.buffer.slice(newlineIndex + 1);
+			if (line) {
+				this.resolvePacket(line);
+			}
+			newlineIndex = this.buffer.indexOf('\n');
+		}
+	}
+
+	private resolvePacket(line: string) {
+		let packet: BridgeEnvelope;
+		try {
+			packet = JSON.parse(line) as BridgeEnvelope;
+		} catch {
+			this.failAll(`Invalid bridge response: ${line}\n${this.stderr}`);
+			return;
+		}
+
+		const packetId = packet.id;
+		if (!packetId) {
+			return;
+		}
+
+		const pending = this.pending.get(packetId);
+		if (!pending) {
+			return;
+		}
+		this.pending.delete(packetId);
+
+		if (!packet.ok) {
+			pending.reject(new Error(packet.error ?? 'Bridge request failed.'));
+			return;
+		}
+
+		pending.resolve(packet);
+	}
+
+	private failAll(message: string) {
+		if (bridgeClient === this) {
+			bridgeClient = null;
+		}
+
+		for (const [id, pending] of this.pending.entries()) {
+			this.pending.delete(id);
+			pending.reject(new Error(message));
+		}
+	}
+}
+
+let bridgeClient: PersistentBridgeClient | null = null;
+let bridgeCleanupRegistered = false;
+
+const getBridgeClient = () => {
+	if (!bridgeClient || bridgeClient.isClosed()) {
+		bridgeClient = new PersistentBridgeClient();
+	}
+
+	if (!bridgeCleanupRegistered) {
+		bridgeCleanupRegistered = true;
+		process.on('exit', () => {
+			bridgeClient?.close();
+		});
+	}
+
+	return bridgeClient;
+};
+
+const invokeBridge = async (request: BridgeRequest): Promise<BridgeEnvelope> => getBridgeClient().request(request);
 
 const renderToolCalls = (toolCalls: any[]) => {
 	if (!toolCalls?.length) {
@@ -990,21 +1094,7 @@ const InteractiveKeyboardController = ({
 	return null;
 };
 
-type CardProps = {
-	title: string;
-	accent?: string;
-	subtitle?: string;
-	focused?: boolean;
-	children: React.ReactNode;
-};
-
-const Card = ({title, accent = 'cyan', subtitle, focused = false, children}: CardProps) => (
-	<Box borderStyle="round" borderColor={focused ? accent : 'gray'} paddingX={1} flexDirection="column">
-		<Text color={focused ? accent : 'gray'}>{title}</Text>
-		{subtitle ? <Text color="gray" wrap="truncate-end">{subtitle}</Text> : null}
-		{children}
-	</Box>
-);
+const Divider = ({width}: {width: number}) => <Text color="gray">{repeat('-', Math.max(8, width))}</Text>;
 
 const App = () => {
 	const {exit} = useApp();
@@ -1129,14 +1219,13 @@ const App = () => {
 			});
 	}, []);
 
-	const layoutMode: LayoutMode = terminalWidth >= 136 && terminalHeight >= 28 ? 'desktop' : 'stacked';
-	const sidebarWidth = layoutMode === 'desktop' ? clamp(Math.floor(terminalWidth * 0.27), 30, 38) : terminalWidth - 2;
-	const mainWidth = layoutMode === 'desktop' ? Math.max(74, terminalWidth - sidebarWidth - 5) : terminalWidth - 2;
-	const desktopOutputHeight = clamp(terminalHeight - 11, 16, 34);
-	const stackedOutputHeight = clamp(Math.floor((terminalHeight - 15) * 0.48), 10, 16);
-	const outputViewportHeight = (layoutMode === 'desktop' ? desktopOutputHeight : stackedOutputHeight) - 4;
-	const outputViewportWidth = Math.max(32, (layoutMode === 'desktop' ? mainWidth : terminalWidth - 2) - 4);
-	const activityVisible = layoutMode === 'desktop' ? 6 : 4;
+	const layoutMode: LayoutMode = terminalWidth >= 120 && terminalHeight >= 24 ? 'desktop' : 'stacked';
+	const sidebarWidth = layoutMode === 'desktop' ? clamp(Math.floor(terminalWidth * 0.24), 26, 30) : terminalWidth - 2;
+	const mainWidth = layoutMode === 'desktop' ? Math.max(terminalWidth - sidebarWidth - 5, 60) : terminalWidth - 2;
+	const bodyHeight = clamp(terminalHeight - (layoutMode === 'desktop' ? 9 : 14), 10, 40);
+	const outputViewportHeight = Math.max(6, bodyHeight - 5);
+	const outputViewportWidth = Math.max(32, mainWidth - 2);
+	const activityVisible = layoutMode === 'desktop' ? 5 : 4;
 
 	const metrics = useMemo(() => {
 		const snapshot = statusSnapshot?.status ?? statusSnapshot ?? {};
@@ -1148,6 +1237,7 @@ const App = () => {
 			state: snapshot.needs_setup ? 'setup' : 'ready',
 			installedModels: snapshot.ollama?.installed_models ?? [],
 			host: snapshot.ollama?.host ?? 'n/a',
+			localReady: Boolean(snapshot.local_ready ?? snapshot.ollama?.current_model_available),
 		};
 	}, [statusSnapshot]);
 
@@ -1164,8 +1254,6 @@ const App = () => {
 		}));
 	}, [activityVisible, history, selectedHistoryIndex]);
 
-	const groupRows = useMemo(() => actionRowsForGroup(selectedAction.group, selectedActionIndex), [selectedAction.group, selectedActionIndex]);
-
 	const selectedBody = selectedEntry
 		? detailBodyForEntry(selectedEntry, detailMode)
 		: busy && pendingLabel
@@ -1176,26 +1264,26 @@ const App = () => {
 					'Recent runs stay in the sidebar and the prompt becomes available again as soon as the job completes.',
 				].join('\n')
 			: [
-					'Ephemeral 3.8 follows a Claude-Code-style command workflow.',
-					'Use the navigator for workflows, keep one active result in the canvas, and treat the composer as the place to type.',
+					'Ephemeral turns one command into market context, tools, and execution.',
+					'Use the left rail to move between workflows, keep the workspace focused on one result, and let the composer drive the session.',
 					'',
-					'Controls',
-					'- Enter runs the current action.',
-					'- Up and down switch actions when the composer is empty.',
-					'- Tab changes pane and slash commands bypass the selected action.',
+					'Best starting points',
+					'- Ask for a catalyst read, thesis update, or risk check',
+					'- Compare a basket, open live news, or chart a setup',
+					'- Draft a portfolio, memo, strategy, or alert without leaving the shell',
 					'',
-					'Try',
-					'- Why is NVDA moving and what changes the thesis?',
-					'- Compare META GOOGL AMZN or run /status',
+					'Fast paths',
+					'- /status for routing health and local model readiness',
+					`- ${selectedAction.promptPlaceholder ?? selectedAction.hint}`,
 				].join('\n');
 	const viewport = viewportLines(selectedBody, outputViewportWidth, outputViewportHeight, outputScroll);
 
-	const workspaceStatus = selectedEntry ? selectedEntry.label : pendingLabel ?? 'Workspace';
+	const workspaceStatus = selectedEntry ? selectedEntry.label : pendingLabel ?? selectedAction.label;
 	const workspaceSubtitle = selectedEntry?.input
 		? `input · ${truncate(selectedEntry.input, Math.max(28, outputViewportWidth - 10))}`
 		: detailMode === 'raw'
 			? 'raw payload'
-			: selectedAction.hint;
+			: selectedAction.description;
 
 	const promptCursor = focusPane === 'input' ? '▏' : '';
 	const promptCursorColor = frameIndex % 2 === 0 ? 'cyanBright' : 'blue';
@@ -1205,6 +1293,76 @@ const App = () => {
 		: selectedAction.promptPlaceholder ?? 'Use natural language or slash commands like /quote AAPL';
 	const shellStatus = busy ? `running ${pendingLabel ?? 'request'}` : statusLoading ? 'syncing state' : `${metrics.provider} · ${metrics.model}`;
 	const sidebarFocused = focusPane === 'actions' || focusPane === 'history';
+	const dividerWidth = Math.min(terminalWidth - 8, 72);
+	const headerTone = busy ? 'yellow' : statusLoading ? 'blue' : 'green';
+
+	const sidebarRows = useMemo(() => {
+		const rows: LineRow[] = [
+			{text: 'NAVIGATOR', color: sidebarFocused ? 'cyanBright' : 'gray', bold: true},
+			{text: `${metrics.provider} · ${truncate(String(metrics.model), 20)}`, color: 'gray'},
+			{text: ''},
+		];
+
+		for (const group of ['Research', 'Build', 'Ops'] as const) {
+			rows.push({
+				text: group.toUpperCase(),
+				color: selectedAction.group === group ? 'cyanBright' : 'gray',
+				bold: true,
+			});
+			for (const action of actions.filter(item => item.group === group)) {
+				const selected = action.id === selectedAction.id;
+				rows.push({
+					text: `${selected ? '›' : ' '} ${action.label}`,
+					color: selected ? 'cyanBright' : 'white',
+					bold: selected,
+				});
+			}
+			rows.push({text: ''});
+		}
+
+		rows.push({text: 'RECENT', color: focusPane === 'history' ? 'cyanBright' : 'gray', bold: true});
+		if (activityRows.length) {
+			for (const row of activityRows) {
+				rows.push({
+					text: `${row.selected ? '›' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`,
+					color: row.selected ? 'cyanBright' : row.error ? 'red' : 'gray',
+					bold: row.selected,
+				});
+			}
+		} else {
+			rows.push({text: 'No runs yet', color: 'gray'});
+		}
+
+		rows.push({text: ''});
+		rows.push({text: `${metrics.localReady ? 'Local ready' : 'Local warming'} · ${metrics.state}`, color: 'gray'});
+		if (metrics.host !== 'n/a') {
+			rows.push({text: truncate(metrics.host, sidebarWidth - 1), color: 'gray'});
+		}
+		rows.push({text: `Focus ${focusPane} · ${selectedEntry ? detailMode : 'workspace'}`, color: 'gray'});
+		return padRows(rows, bodyHeight);
+	}, [activityRows, bodyHeight, focusPane, metrics.host, metrics.localReady, metrics.model, metrics.provider, metrics.state, selectedAction.group, selectedAction.id, selectedEntry, detailMode, sidebarFocused, sidebarWidth]);
+
+	const workspaceRows = useMemo(
+		() =>
+			padRows(
+				[
+					{text: workspaceStatus, color: focusPane === 'output' ? 'cyanBright' : 'white', bold: true},
+					{text: workspaceSubtitle, color: 'gray'},
+					{text: ''},
+					...viewport.lines.map(line => ({text: line || ' '})),
+					{text: ''},
+					{
+						text:
+							viewport.total > viewport.lines.length
+								? `scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total} · ${detailMode}`
+								: `${detailMode} view · ${busy ? 'request running' : 'ready for next command'}`,
+						color: 'gray',
+					},
+				],
+				bodyHeight,
+			),
+		[bodyHeight, busy, detailMode, focusPane, viewport.lines, viewport.offset, viewport.total, workspaceStatus, workspaceSubtitle],
+	);
 
 	return (
 		<Box flexDirection="column" paddingX={1}>
@@ -1226,127 +1384,79 @@ const App = () => {
 				/>
 			) : null}
 
-			<Box justifyContent="space-between" flexDirection={layoutMode === 'desktop' ? 'row' : 'column'} marginBottom={1}>
+			<Box justifyContent="space-between" flexDirection={layoutMode === 'desktop' ? 'row' : 'column'}>
 				<Box flexDirection="column" marginBottom={layoutMode === 'desktop' ? 0 : 1}>
-					<Text color="cyanBright">Ephemeral {APP_VERSION}</Text>
-					<Text color="gray">Research shell for market analysis, execution workflows, and local-or-cloud model routing.</Text>
+					<Text color="cyanBright" bold>
+						Ephemeral {APP_VERSION}
+					</Text>
+					<Text color="gray">Market intelligence, research workflows, and execution surfaces in one terminal shell.</Text>
 				</Box>
 				<Box flexDirection="column" alignItems={layoutMode === 'desktop' ? 'flex-end' : 'flex-start'}>
-					<Text color={busy ? 'yellow' : statusLoading ? 'blue' : 'green'}>{`${animationFrames[frameIndex]} ${shellStatus}`}</Text>
-					<Text color="gray">Enter run · Tab panes · arrows choose · [ ] scroll · d raw</Text>
+					<Text color={headerTone}>{`${animationFrames[frameIndex]} ${shellStatus}`}</Text>
+					<Text color="gray">{`${selectedAction.group} · ${selectedAction.label} · ${metrics.localReady ? 'local ready' : 'cloud or setup path'}`}</Text>
 				</Box>
 			</Box>
 
-			{layoutMode === 'desktop' ? (
-				<Box marginBottom={1}>
-					<Box width={sidebarWidth} marginRight={1}>
-						<Card title="Navigator" subtitle={`${metrics.provider} · ${truncate(String(metrics.model), 20)}`} focused={sidebarFocused} accent="cyan">
-							<Text color="gray">Session</Text>
-							<Text color="gray">State   {metrics.state}</Text>
-							<Text color="gray">Local   {metrics.installedModels.length ? `${metrics.installedModels.length} models ready` : 'not ready'}</Text>
-							{metrics.host !== 'n/a' ? <Text color="gray">Host    {truncate(String(metrics.host), 20)}</Text> : null}
-							<Box>
-								<Text color={selectedAction.group === 'Research' ? 'cyanBright' : 'gray'}>Research</Text>
-								<Text color="gray"> · </Text>
-								<Text color={selectedAction.group === 'Build' ? 'yellow' : 'gray'}>Build</Text>
-								<Text color="gray"> · </Text>
-								<Text color={selectedAction.group === 'Ops' ? 'green' : 'gray'}>Ops</Text>
-							</Box>
-							<Text color="gray">Actions</Text>
-							{groupRows.map(row => (
-								<Text key={row.id} color={row.selected ? 'cyanBright' : 'white'} bold={row.selected} wrap="truncate-end">
-									{row.label}
-								</Text>
-							))}
-							<Text color="gray">Recent Runs</Text>
-							{activityRows.length ? (
-								activityRows.map(row => (
-									<Text key={row.id} color={row.selected ? 'cyanBright' : row.error ? 'red' : 'gray'} bold={row.selected} wrap="truncate-end">
-										{`${row.selected ? '▸' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`}
-									</Text>
-								))
-							) : (
-								<Text color="gray">No runs yet</Text>
-							)}
-							<Text color="gray">Focus   {focusPane}</Text>
-							<Text color="gray">Inspect {selectedEntry ? detailMode : 'workspace'}</Text>
-						</Card>
-					</Box>
+			<Divider width={dividerWidth} />
 
-					<Box width={mainWidth}>
-						<Card title={workspaceStatus} subtitle={workspaceSubtitle} focused={focusPane === 'output'} accent="cyan">
-							{viewport.lines.map((line, index) => (
-								<Text key={`${workspaceStatus}-${index}`}>{line || ' '}</Text>
-							))}
-							<Newline />
-							<Text color="gray">
-								{viewport.total > viewport.lines.length
-									? `scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total}`
-									: `detail ${detailMode} · rendered for human scanning`}
+			{layoutMode === 'desktop' ? (
+				<Box height={bodyHeight}>
+					<Box width={sidebarWidth} flexDirection="column">
+						{sidebarRows.map((row, index) => (
+							<Text key={`sidebar-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
+								{row.text || ' '}
 							</Text>
-						</Card>
+						))}
+					</Box>
+					<Box width={3} alignItems="center" flexDirection="column">
+						{Array.from({length: bodyHeight}, (_, index) => (
+							<Text key={`rule-${index}`} color="gray">
+								│
+							</Text>
+						))}
+					</Box>
+					<Box width={mainWidth} flexDirection="column">
+						{workspaceRows.map((row, index) => (
+							<Text key={`workspace-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
+								{row.text || ' '}
+							</Text>
+						))}
 					</Box>
 				</Box>
 			) : (
-				<Box flexDirection="column" marginBottom={1}>
-					<Box marginBottom={1}>
-						<Card title={workspaceStatus} subtitle={workspaceSubtitle} focused={focusPane === 'output'} accent="cyan">
-							{viewport.lines.map((line, index) => (
-								<Text key={`${workspaceStatus}-${index}`}>{line || ' '}</Text>
-							))}
-							<Newline />
-							<Text color="gray">
-								{viewport.total > viewport.lines.length
-									? `scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total}`
-									: `detail ${detailMode} · rendered for human scanning`}
-							</Text>
-						</Card>
-					</Box>
-
-					<Card title="Navigator" subtitle={`${metrics.provider} · ${truncate(String(metrics.model), 24)}`} focused={sidebarFocused} accent="cyan">
-						<Text color="gray">Session</Text>
-						<Text color="gray">State   {metrics.state}</Text>
-						<Text color="gray">Local   {metrics.installedModels.length ? `${metrics.installedModels.length} models ready` : 'not ready'}</Text>
-						{metrics.host !== 'n/a' ? <Text color="gray">Host    {truncate(String(metrics.host), 36)}</Text> : null}
-						<Box>
-							<Text color={selectedAction.group === 'Research' ? 'cyanBright' : 'gray'}>Research</Text>
-							<Text color="gray"> · </Text>
-							<Text color={selectedAction.group === 'Build' ? 'yellow' : 'gray'}>Build</Text>
-							<Text color="gray"> · </Text>
-							<Text color={selectedAction.group === 'Ops' ? 'green' : 'gray'}>Ops</Text>
-						</Box>
-						<Text color="gray">Actions</Text>
-						{groupRows.map(row => (
-							<Text key={row.id} color={row.selected ? 'cyanBright' : 'white'} bold={row.selected} wrap="truncate-end">
-								{row.label}
-							</Text>
-						))}
-						<Text color="gray">Recent Runs</Text>
-						{activityRows.length ? (
-							activityRows.map(row => (
-								<Text key={row.id} color={row.selected ? 'cyanBright' : row.error ? 'red' : 'gray'} bold={row.selected} wrap="truncate-end">
-									{`${row.selected ? '▸' : ' '} ${truncate(row.label, 40)} · ${row.timestamp}`}
-								</Text>
-							))
-						) : (
-							<Text color="gray">No runs yet</Text>
-						)}
-						<Text color="gray">Focus   {focusPane}</Text>
-						<Text color="gray">Inspect {selectedEntry ? detailMode : 'workspace'}</Text>
-					</Card>
+				<Box flexDirection="column">
+					{workspaceRows.map((row, index) => (
+						<Text key={`workspace-stacked-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
+							{row.text || ' '}
+						</Text>
+					))}
+					<Divider width={dividerWidth} />
+					{sidebarRows.slice(0, Math.min(sidebarRows.length, 16)).map((row, index) => (
+						<Text key={`sidebar-stacked-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
+							{row.text || ' '}
+						</Text>
+					))}
 				</Box>
 			)}
 
-			<Card title={`Composer · ${selectedAction.label}`} subtitle={selectedAction.hint} focused={focusPane === 'input'} accent="cyan">
+			<Divider width={dividerWidth} />
+
+			<Box flexDirection="column">
+				<Box justifyContent="space-between">
+					<Text color={focusPane === 'input' ? 'cyanBright' : 'white'} bold>
+						{selectedAction.label}
+					</Text>
+					<Text color={busy ? 'yellow' : 'gray'}>{`${promptStatus} · Enter run`}</Text>
+				</Box>
 				<Text>
-					<Text color={busy ? 'yellow' : 'green'}>{promptStatus.padEnd(7)}</Text>
-					<Text color={focusPane === 'input' ? 'cyanBright' : 'gray'}> ▸ </Text>
-					<Text>{input}</Text>
+					<Text color={focusPane === 'input' ? 'cyanBright' : 'gray'}>› </Text>
+					{input ? <Text>{input}</Text> : null}
 					{focusPane === 'input' ? <Text color={promptCursorColor}>{promptCursor}</Text> : null}
+					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
-				<Text color="gray" wrap="truncate-end">{promptHint}</Text>
-				<Text color="gray">Enter run · Up/Down choose action when empty · Tab switch pane · /status for routing info</Text>
-			</Card>
+				<Text color="gray">{selectedAction.hint}</Text>
+				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output</Text>
+			</Box>
 		</Box>
 	);
 };
