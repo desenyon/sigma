@@ -10,6 +10,7 @@ Released: 2026-04-09
 
 - Rebuilt the Ink shell around a cleaner workspace, navigator sidebar, and prompt dock.
 - Fixed inconsistent prompt focus and cursor behavior so typing always returns to the input surface.
+- Added direct action switching from the empty composer so the shell feels live before any request runs.
 - Reduced layout bloat and raised the stacked-layout fallback threshold to keep content inside the frame on smaller terminals.
 - Improved rendered output formatting for status, help, ask/tool responses, and operational views.
 
