@@ -16,6 +16,18 @@ def test_status_payload_contains_provider_and_health() -> None:
     assert "installed_models" in payload["ollama"]
 
 
+def test_status_payload_reports_local_ready() -> None:
+    with (
+        patch("ephemeral.ink_bridge.detect_ollama", return_value=(True, "http://localhost:11434")),
+        patch("ephemeral.ink_bridge.list_ollama_model_names", return_value=["qwen2.5:1.5b"]),
+        patch("ephemeral.ink_bridge.ollama_has_model", return_value=True),
+    ):
+        payload = ink_bridge._status_payload()
+
+    assert payload["local_ready"] is True
+    assert payload["ollama"]["current_model_available"] is True
+
+
 def test_quote_payload_raises_without_symbols() -> None:
     try:
         ink_bridge._quote_payload({})
