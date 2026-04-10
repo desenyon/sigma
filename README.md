@@ -21,6 +21,7 @@ Ephemeral is a keyboard-first research environment for market analysis, thesis d
 - The Ink UI was redesigned around a cleaner workspace, compact sidebar, and dedicated prompt dock.
 - Input handling is more reliable: typing always returns focus to the prompt, the cursor behaves consistently, and requests no longer make the shell feel frozen.
 - The composer is more usable: when it is empty, `↑` and `↓` switch actions directly so the shell no longer feels static.
+- Repeated Ink actions are much faster because the shell now keeps a persistent Python bridge worker alive instead of cold-starting one per request.
 - The layout falls back earlier on smaller terminals so content stays inside the frame instead of clipping or colliding.
 - Ollama onboarding is more accurate: setup can now adopt already-installed local models instead of assuming every machine needs a fresh pull.
 - Versioning is centralized and release changes are now logged in [`CHANGELOG.md`](/Users/naitikgupta/Projects/ephemeral/CHANGELOG.md).
