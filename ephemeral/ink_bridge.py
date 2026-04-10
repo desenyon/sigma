@@ -83,15 +83,17 @@ def _status_payload() -> Dict[str, Any]:
     ollama_host = detected_host or settings.ollama_host
     installed_models = list_ollama_model_names(ollama_host) if ollama_reachable else []
     current_model = settings.default_model
+    current_model_available = ollama_has_model(ollama_host, current_model) if current_model else False
 
     return {
         "provider": settings.default_provider.value,
         "model": current_model,
         "needs_setup": needs_llm_setup(settings),
+        "local_ready": ollama_reachable and current_model_available,
         "ollama": {
             "reachable": ollama_reachable,
             "host": ollama_host,
-            "current_model_available": ollama_has_model(ollama_host, current_model) if current_model else False,
+            "current_model_available": current_model_available,
             "installed_models": installed_models[:8],
         },
         "lean": {
@@ -124,15 +126,15 @@ def _help_payload() -> Dict[str, Any]:
     return {
         "title": "Ephemeral Help",
         "body": (
-            "Ink is now the primary interactive CLI. Use the action list for common workflows or type "
-            "slash commands directly in the command bar."
+            "Ink is the primary interactive CLI. Keep the navigator on the left, the active result in the "
+            "workspace, and the composer at the bottom for every command."
         ),
         "slash_commands": list(AutocompleteEngine.COMMANDS),
         "tips": [
             "Use natural language with Ask for thesis work, catalysts, and portfolio questions.",
             "Use Quote, News, Compare, Chart, and Backtest for direct market workflows.",
-            "Use Portfolio, Strategy, Report, and Alert to drive the local research engine.",
-            "Use Legacy UI if you want the older Textual interface.",
+            "Use the composer with Up and Down when empty to switch actions quickly.",
+            "Use slash commands any time you want to bypass the selected action.",
         ],
     }
 
@@ -142,8 +144,8 @@ def _shortcuts_payload() -> Dict[str, Any]:
         "title": "Shortcuts",
         "items": [
             {"key": "Enter", "action": "Run the current action or slash command"},
-            {"key": "Tab", "action": "Move to the next action"},
-            {"key": "Up / Down", "action": "Move the highlighted action"},
+            {"key": "Tab", "action": "Rotate between navigator, history, result, and composer"},
+            {"key": "Up / Down", "action": "Move the highlighted action when the composer is empty"},
             {"key": "Esc", "action": "Clear the current input"},
             {"key": "Ctrl+L", "action": "Clear history"},
             {"key": "Ctrl+C", "action": "Quit"},
