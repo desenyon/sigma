@@ -280,6 +280,78 @@ const previewValue = (value: unknown, max = 100) => {
 	const raw = typeof value === 'string' ? value : JSON.stringify(value);
 	return truncate((raw || '').replace(/\s+/g, ' ').trim(), max);
 };
+const titleCase = (value: string) =>
+	value
+		.replace(/[_-]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.replace(/\b\w/g, character => character.toUpperCase());
+const primitiveValue = (value: unknown) => {
+	if (value === null || value === undefined || value === '') {
+		return 'n/a';
+	}
+	if (typeof value === 'boolean') {
+		return value ? 'yes' : 'no';
+	}
+	if (typeof value === 'number') {
+		return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
+	}
+	return String(value);
+};
+const formatStructuredLines = (value: unknown, indent = 0): string[] => {
+	const pad = ' '.repeat(indent);
+	if (value === null || value === undefined || value === '') {
+		return [`${pad}n/a`];
+	}
+	if (typeof value === 'string') {
+		return value.split('\n').map(line => `${pad}${line}`);
+	}
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return [`${pad}${primitiveValue(value)}`];
+	}
+	if (Array.isArray(value)) {
+		if (!value.length) {
+			return [`${pad}none`];
+		}
+		return value.flatMap(item => {
+			if (item === null || item === undefined || typeof item !== 'object') {
+				return [`${pad}- ${primitiveValue(item)}`];
+			}
+
+			const rows = Object.entries(item).filter(([, child]) => child !== undefined && child !== null && child !== '');
+			if (!rows.length) {
+				return [`${pad}- n/a`];
+			}
+
+			const [[firstKey, firstValue], ...rest] = rows;
+			return [
+				`${pad}- ${titleCase(firstKey)}: ${primitiveValue(firstValue)}`,
+				...rest.flatMap(([childKey, childValue]) => {
+					if (childValue === undefined || childValue === null || childValue === '') {
+						return [];
+					}
+					if (typeof childValue === 'object') {
+						return [`${pad}  ${titleCase(childKey)}`, ...formatStructuredLines(childValue, indent + 4)];
+					}
+					return [`${pad}  ${titleCase(childKey)}: ${primitiveValue(childValue)}`];
+				}),
+			];
+		});
+	}
+
+	const rows = Object.entries(value as Record<string, unknown>).filter(([, child]) => child !== undefined && child !== null && child !== '');
+	if (!rows.length) {
+		return [`${pad}n/a`];
+	}
+
+	return rows.flatMap(([key, child]) => {
+		if (typeof child === 'object') {
+			return [`${pad}${titleCase(key)}`, ...formatStructuredLines(child, indent + 2)];
+		}
+		return [`${pad}${titleCase(key)}: ${primitiveValue(child)}`];
+	});
+};
+const formatStructuredBlock = (value: unknown) => formatStructuredLines(value).join('\n');
 const joinSections = (...sections: Array<string | undefined>) => sections.filter(Boolean).join('\n\n');
 
 const wrapText = (input: string, width: number): string[] => {
@@ -676,25 +748,25 @@ const detailBodyForEntry = (entry: HistoryEntry, detailMode: DetailMode): string
 				.filter(Boolean)
 				.join('\n');
 		case 'backtest':
-			return JSON.stringify(payload?.result ?? payload, null, 2);
+			return formatStructuredBlock(payload?.result ?? payload);
 		case 'portfolio':
 		case 'strategy':
 		case 'report':
 		case 'alert':
-			return JSON.stringify(payload?.engine_result ?? payload, null, 2);
+			return formatStructuredBlock(payload?.engine_result ?? payload);
 		case 'models':
 			return [
 				`Default provider ${payload?.default_provider ?? 'n/a'}`,
 				`Default model    ${payload?.default_model ?? 'n/a'}`,
 				'',
 				...Object.entries(payload?.providers ?? {}).flatMap(([provider, models]) => [
-					`${provider}`,
-					`  ${(models as string[]).join(', ')}`,
+					`${titleCase(provider)}`,
+					...((models as string[]).map(model => `  - ${model}`) || ['  - none']),
 					'',
 				]),
 			].join('\n');
 		case 'tools':
-			return ((payload?.tools ?? []) as string[]).join('\n');
+			return ((payload?.tools ?? []) as string[]).map((tool, index) => `${index + 1}. ${tool}`).join('\n');
 		case 'setup-help':
 			return [
 				'Setup',
@@ -703,7 +775,7 @@ const detailBodyForEntry = (entry: HistoryEntry, detailMode: DetailMode): string
 				payload?.docs_url ?? '',
 			].join('\n');
 		case 'reload':
-			return `Router reloaded\n\n${JSON.stringify(payload?.status ?? payload, null, 2)}`;
+			return joinSections('Router reloaded', formatStructuredBlock(payload?.status ?? payload));
 		case 'export':
 			return `Export complete\n\nPath: ${payload?.path ?? 'n/a'}\nCharacters: ${payload?.characters ?? 0}`;
 		default:
@@ -803,6 +875,9 @@ const InteractiveKeyboardController = ({
 		}
 
 		if (key.leftArrow) {
+			if (focusPane === 'input' && input.length > 0) {
+				return;
+			}
 			setFocusPane(previous => {
 				if (previous === 'input') return 'output';
 				if (previous === 'output') return 'history';
@@ -813,6 +888,9 @@ const InteractiveKeyboardController = ({
 		}
 
 		if (key.rightArrow) {
+			if (focusPane === 'input' && input.length > 0) {
+				return;
+			}
 			setFocusPane(previous => {
 				if (previous === 'actions') return 'history';
 				if (previous === 'history') return 'output';
@@ -831,6 +909,16 @@ const InteractiveKeyboardController = ({
 		if (key.escape) {
 			setInput('');
 			setFocusPane('input');
+			return;
+		}
+
+		if (key.downArrow && focusPane === 'input' && !input.trim()) {
+			setSelectedActionIndex(previous => (previous + 1) % actions.length);
+			return;
+		}
+
+		if (key.upArrow && focusPane === 'input' && !input.trim()) {
+			setSelectedActionIndex(previous => (previous - 1 + actions.length) % actions.length);
 			return;
 		}
 
@@ -918,26 +1006,6 @@ const Card = ({title, accent = 'cyan', subtitle, focused = false, children}: Car
 	</Box>
 );
 
-type PillProps = {
-	label: string;
-	value: string;
-	color: string;
-	stacked?: boolean;
-};
-
-const Pill = ({label, value, color, stacked = false}: PillProps) => (
-	<Box
-		borderStyle="round"
-		borderColor={color}
-		paddingX={1}
-		marginRight={stacked ? 0 : 1}
-		marginBottom={stacked ? 1 : 0}
-	>
-		<Text color={color}>{label} </Text>
-		<Text>{value}</Text>
-	</Box>
-);
-
 const App = () => {
 	const {exit} = useApp();
 	useRawMode();
@@ -954,6 +1022,7 @@ const App = () => {
 	const [statusSnapshot, setStatusSnapshot] = useState<any>(null);
 	const [outputScroll, setOutputScroll] = useState(0);
 	const [pendingLabel, setPendingLabel] = useState<string | null>(null);
+	const [statusLoading, setStatusLoading] = useState(true);
 
 	const selectedAction = actions[selectedActionIndex]!;
 	const selectedEntry = history[selectedHistoryIndex] ?? null;
@@ -1049,17 +1118,25 @@ const App = () => {
 			return;
 		}
 
-		void runRequest({action: 'status'}, 'Boot status', '');
+		setStatusLoading(true);
+		void invokeBridge({action: 'status'})
+			.then(result => {
+				setStatusSnapshot(result.data);
+			})
+			.catch(() => undefined)
+			.finally(() => {
+				setStatusLoading(false);
+			});
 	}, []);
 
-	const layoutMode: LayoutMode = terminalWidth >= 176 && terminalHeight >= 34 ? 'desktop' : 'stacked';
-	const mainWidth = layoutMode === 'desktop' ? clamp(Math.floor(terminalWidth * 0.68), 76, 126) : terminalWidth - 2;
-	const sidebarWidth = layoutMode === 'desktop' ? Math.max(34, terminalWidth - mainWidth - 5) : terminalWidth - 2;
-	const desktopOutputHeight = clamp(terminalHeight - 14, 16, 36);
-	const stackedOutputHeight = clamp(Math.floor((terminalHeight - 18) * 0.46), 10, 16);
+	const layoutMode: LayoutMode = terminalWidth >= 136 && terminalHeight >= 28 ? 'desktop' : 'stacked';
+	const sidebarWidth = layoutMode === 'desktop' ? clamp(Math.floor(terminalWidth * 0.27), 30, 38) : terminalWidth - 2;
+	const mainWidth = layoutMode === 'desktop' ? Math.max(74, terminalWidth - sidebarWidth - 5) : terminalWidth - 2;
+	const desktopOutputHeight = clamp(terminalHeight - 11, 16, 34);
+	const stackedOutputHeight = clamp(Math.floor((terminalHeight - 15) * 0.48), 10, 16);
 	const outputViewportHeight = (layoutMode === 'desktop' ? desktopOutputHeight : stackedOutputHeight) - 4;
 	const outputViewportWidth = Math.max(32, (layoutMode === 'desktop' ? mainWidth : terminalWidth - 2) - 4);
-	const activityVisible = layoutMode === 'desktop' ? 7 : 5;
+	const activityVisible = layoutMode === 'desktop' ? 6 : 4;
 
 	const metrics = useMemo(() => {
 		const snapshot = statusSnapshot?.status ?? statusSnapshot ?? {};
@@ -1070,6 +1147,7 @@ const App = () => {
 			backends: String(routerBackends.length || 0),
 			state: snapshot.needs_setup ? 'setup' : 'ready',
 			installedModels: snapshot.ollama?.installed_models ?? [],
+			host: snapshot.ollama?.host ?? 'n/a',
 		};
 	}, [statusSnapshot]);
 
@@ -1094,26 +1172,30 @@ const App = () => {
 			? [
 					`${pendingLabel} is running.`,
 					'',
-					'The bridge is working in the background while the shell stays interactive.',
-					'Use Tab to inspect modes or recent activity without losing your place.',
+					'The request is executing in the background while the shell stays interactive.',
+					'Recent runs stay in the sidebar and the prompt becomes available again as soon as the job completes.',
 				].join('\n')
 			: [
-					'Ephemeral 3.8 brings a cleaner terminal workspace.',
+					'Ephemeral 3.8 follows a Claude-Code-style command workflow.',
+					'Use the navigator for workflows, keep one active result in the canvas, and treat the composer as the place to type.',
 					'',
-					'This shell now behaves more like a focused research IDE: one dominant canvas, one compact sidebar, and one durable prompt dock.',
-					'Type anywhere to jump into the command line, or move through panes with Tab and arrows.',
+					'Controls',
+					'- Enter runs the current action.',
+					'- Up and down switch actions when the composer is empty.',
+					'- Tab changes pane and slash commands bypass the selected action.',
 					'',
-					`Current mode: ${selectedAction.label}`,
-					selectedAction.promptPlaceholder ?? selectedAction.hint,
+					'Try',
+					'- Why is NVDA moving and what changes the thesis?',
+					'- Compare META GOOGL AMZN or run /status',
 				].join('\n');
 	const viewport = viewportLines(selectedBody, outputViewportWidth, outputViewportHeight, outputScroll);
 
-	const workspaceStatus = selectedEntry ? selectedEntry.label : pendingLabel ?? selectedAction.label;
+	const workspaceStatus = selectedEntry ? selectedEntry.label : pendingLabel ?? 'Workspace';
 	const workspaceSubtitle = selectedEntry?.input
 		? `input · ${truncate(selectedEntry.input, Math.max(28, outputViewportWidth - 10))}`
 		: detailMode === 'raw'
 			? 'raw payload'
-			: selectedAction.description;
+			: selectedAction.hint;
 
 	const promptCursor = focusPane === 'input' ? '▏' : '';
 	const promptCursorColor = frameIndex % 2 === 0 ? 'cyanBright' : 'blue';
@@ -1121,6 +1203,8 @@ const App = () => {
 	const promptHint = input.trim()
 		? selectedAction.hint
 		: selectedAction.promptPlaceholder ?? 'Use natural language or slash commands like /quote AAPL';
+	const shellStatus = busy ? `running ${pendingLabel ?? 'request'}` : statusLoading ? 'syncing state' : `${metrics.provider} · ${metrics.model}`;
+	const sidebarFocused = focusPane === 'actions' || focusPane === 'history';
 
 	return (
 		<Box flexDirection="column" paddingX={1}>
@@ -1145,92 +1229,68 @@ const App = () => {
 			<Box justifyContent="space-between" flexDirection={layoutMode === 'desktop' ? 'row' : 'column'} marginBottom={1}>
 				<Box flexDirection="column" marginBottom={layoutMode === 'desktop' ? 0 : 1}>
 					<Text color="cyanBright">Ephemeral {APP_VERSION}</Text>
-					<Text color="gray">A terminal-native research cockpit with a cleaner workspace, lighter chrome, and setup-aware routing.</Text>
+					<Text color="gray">Research shell for market analysis, execution workflows, and local-or-cloud model routing.</Text>
 				</Box>
 				<Box flexDirection="column" alignItems={layoutMode === 'desktop' ? 'flex-end' : 'flex-start'}>
-					<Text color={busy ? 'yellow' : 'green'}>
-						{busy ? `live ${animationFrames[frameIndex]} ${pendingLabel ?? 'request'}` : `stable ${animationFrames[frameIndex]} focus ${focusPane}`}
-					</Text>
-					<Text color="gray">Tab panes · arrows/jk move · [ ] scroll · d raw</Text>
+					<Text color={busy ? 'yellow' : statusLoading ? 'blue' : 'green'}>{`${animationFrames[frameIndex]} ${shellStatus}`}</Text>
+					<Text color="gray">Enter run · Tab panes · arrows choose · [ ] scroll · d raw</Text>
 				</Box>
-			</Box>
-
-			<Box flexDirection={layoutMode === 'desktop' ? 'row' : 'column'} marginBottom={1}>
-				<Pill label="Provider" value={metrics.provider} color="cyan" stacked={layoutMode !== 'desktop'} />
-				<Pill label="Model" value={truncate(String(metrics.model), layoutMode === 'desktop' ? 26 : 40)} color="blue" stacked={layoutMode !== 'desktop'} />
-				<Pill label="Backends" value={metrics.backends} color="yellow" stacked={layoutMode !== 'desktop'} />
-				<Pill label="State" value={metrics.state} color={metrics.state === 'ready' ? 'green' : 'red'} stacked={layoutMode !== 'desktop'} />
 			</Box>
 
 			{layoutMode === 'desktop' ? (
 				<Box marginBottom={1}>
-					<Box width={mainWidth} marginRight={1} flexDirection="column">
-						<Card
-							title={`Workspace · ${workspaceStatus}`}
-							subtitle={workspaceSubtitle}
-							focused={focusPane === 'output'}
-							accent="cyan"
-						>
-							<Newline />
-							{viewport.lines.map((line, index) => (
-								<Text key={`${workspaceStatus}-${index}`}>{line || ' '}</Text>
-							))}
-							<Newline />
-							<Text color="gray">
-								{viewport.total > viewport.lines.length
-									? `scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total}`
-									: `detail ${detailMode} · rendered for human scanning`}
-							</Text>
-						</Card>
-					</Box>
-
-					<Box width={sidebarWidth} flexDirection="column">
-						<Box marginBottom={1}>
-							<Card title="Activity" subtitle={`${history.length} runs`} focused={focusPane === 'history'} accent="cyan">
-								<Newline />
-								{activityRows.length ? (
-									activityRows.map(row => (
-										<Text key={row.id} color={row.selected ? 'cyanBright' : row.error ? 'red' : 'white'} bold={row.selected} wrap="truncate-end">
-											{`${row.selected ? '▸' : ' '} ${truncate(row.label, 20)} · ${row.timestamp}`}
-										</Text>
-									))
-								) : (
-									<Text color="gray">No activity yet. Your recent runs will land here.</Text>
-								)}
-							</Card>
-						</Box>
-
-						<Card title="Navigator" subtitle={`${selectedAction.group} mode`} focused={focusPane === 'actions'} accent="cyan">
-							<Newline />
-							<Box marginBottom={1}>
+					<Box width={sidebarWidth} marginRight={1}>
+						<Card title="Navigator" subtitle={`${metrics.provider} · ${truncate(String(metrics.model), 20)}`} focused={sidebarFocused} accent="cyan">
+							<Text color="gray">Session</Text>
+							<Text color="gray">State   {metrics.state}</Text>
+							<Text color="gray">Local   {metrics.installedModels.length ? `${metrics.installedModels.length} models ready` : 'not ready'}</Text>
+							{metrics.host !== 'n/a' ? <Text color="gray">Host    {truncate(String(metrics.host), 20)}</Text> : null}
+							<Box>
 								<Text color={selectedAction.group === 'Research' ? 'cyanBright' : 'gray'}>Research</Text>
 								<Text color="gray"> · </Text>
 								<Text color={selectedAction.group === 'Build' ? 'yellow' : 'gray'}>Build</Text>
 								<Text color="gray"> · </Text>
 								<Text color={selectedAction.group === 'Ops' ? 'green' : 'gray'}>Ops</Text>
 							</Box>
+							<Text color="gray">Actions</Text>
 							{groupRows.map(row => (
 								<Text key={row.id} color={row.selected ? 'cyanBright' : 'white'} bold={row.selected} wrap="truncate-end">
 									{row.label}
 								</Text>
 							))}
-							<Newline />
-							<Text color="gray">Focus  {focusPane}</Text>
+							<Text color="gray">Recent Runs</Text>
+							{activityRows.length ? (
+								activityRows.map(row => (
+									<Text key={row.id} color={row.selected ? 'cyanBright' : row.error ? 'red' : 'gray'} bold={row.selected} wrap="truncate-end">
+										{`${row.selected ? '▸' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`}
+									</Text>
+								))
+							) : (
+								<Text color="gray">No runs yet</Text>
+							)}
+							<Text color="gray">Focus   {focusPane}</Text>
 							<Text color="gray">Inspect {selectedEntry ? detailMode : 'workspace'}</Text>
-							<Text color="gray">Ollama {metrics.installedModels.length ? `${metrics.installedModels.length} installed` : 'not detected'}</Text>
+						</Card>
+					</Box>
+
+					<Box width={mainWidth}>
+						<Card title={workspaceStatus} subtitle={workspaceSubtitle} focused={focusPane === 'output'} accent="cyan">
+							{viewport.lines.map((line, index) => (
+								<Text key={`${workspaceStatus}-${index}`}>{line || ' '}</Text>
+							))}
+							<Newline />
+							<Text color="gray">
+								{viewport.total > viewport.lines.length
+									? `scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total}`
+									: `detail ${detailMode} · rendered for human scanning`}
+							</Text>
 						</Card>
 					</Box>
 				</Box>
 			) : (
 				<Box flexDirection="column" marginBottom={1}>
 					<Box marginBottom={1}>
-						<Card
-							title={`Workspace · ${workspaceStatus}`}
-							subtitle={workspaceSubtitle}
-							focused={focusPane === 'output'}
-							accent="cyan"
-						>
-							<Newline />
+						<Card title={workspaceStatus} subtitle={workspaceSubtitle} focused={focusPane === 'output'} accent="cyan">
 							{viewport.lines.map((line, index) => (
 								<Text key={`${workspaceStatus}-${index}`}>{line || ' '}</Text>
 							))}
@@ -1243,45 +1303,41 @@ const App = () => {
 						</Card>
 					</Box>
 
-					<Box marginBottom={1}>
-						<Card title="Activity" subtitle={`${history.length} runs`} focused={focusPane === 'history'} accent="cyan">
-							<Newline />
-							{activityRows.length ? (
-								activityRows.map(row => (
-									<Text key={row.id} color={row.selected ? 'cyanBright' : row.error ? 'red' : 'white'} bold={row.selected} wrap="truncate-end">
-										{`${row.selected ? '▸' : ' '} ${truncate(row.label, 42)} · ${row.timestamp}`}
-									</Text>
-								))
-							) : (
-								<Text color="gray">No activity yet. Your recent runs will land here.</Text>
-							)}
-						</Card>
-					</Box>
-
-					<Card title="Navigator" subtitle={`${selectedAction.group} mode`} focused={focusPane === 'actions'} accent="cyan">
-						<Newline />
-						<Box marginBottom={1}>
+					<Card title="Navigator" subtitle={`${metrics.provider} · ${truncate(String(metrics.model), 24)}`} focused={sidebarFocused} accent="cyan">
+						<Text color="gray">Session</Text>
+						<Text color="gray">State   {metrics.state}</Text>
+						<Text color="gray">Local   {metrics.installedModels.length ? `${metrics.installedModels.length} models ready` : 'not ready'}</Text>
+						{metrics.host !== 'n/a' ? <Text color="gray">Host    {truncate(String(metrics.host), 36)}</Text> : null}
+						<Box>
 							<Text color={selectedAction.group === 'Research' ? 'cyanBright' : 'gray'}>Research</Text>
 							<Text color="gray"> · </Text>
 							<Text color={selectedAction.group === 'Build' ? 'yellow' : 'gray'}>Build</Text>
 							<Text color="gray"> · </Text>
 							<Text color={selectedAction.group === 'Ops' ? 'green' : 'gray'}>Ops</Text>
 						</Box>
+						<Text color="gray">Actions</Text>
 						{groupRows.map(row => (
 							<Text key={row.id} color={row.selected ? 'cyanBright' : 'white'} bold={row.selected} wrap="truncate-end">
 								{row.label}
 							</Text>
 						))}
-						<Newline />
-						<Text color="gray">Focus  {focusPane}</Text>
+						<Text color="gray">Recent Runs</Text>
+						{activityRows.length ? (
+							activityRows.map(row => (
+								<Text key={row.id} color={row.selected ? 'cyanBright' : row.error ? 'red' : 'gray'} bold={row.selected} wrap="truncate-end">
+									{`${row.selected ? '▸' : ' '} ${truncate(row.label, 40)} · ${row.timestamp}`}
+								</Text>
+							))
+						) : (
+							<Text color="gray">No runs yet</Text>
+						)}
+						<Text color="gray">Focus   {focusPane}</Text>
 						<Text color="gray">Inspect {selectedEntry ? detailMode : 'workspace'}</Text>
-						<Text color="gray">Ollama {metrics.installedModels.length ? `${metrics.installedModels.length} installed` : 'not detected'}</Text>
 					</Card>
 				</Box>
 			)}
 
-			<Card title={`Prompt · ${selectedAction.label}`} subtitle={selectedAction.description} focused={focusPane === 'input'} accent="cyan">
-				<Newline />
+			<Card title={`Composer · ${selectedAction.label}`} subtitle={selectedAction.hint} focused={focusPane === 'input'} accent="cyan">
 				<Text>
 					<Text color={busy ? 'yellow' : 'green'}>{promptStatus.padEnd(7)}</Text>
 					<Text color={focusPane === 'input' ? 'cyanBright' : 'gray'}> ▸ </Text>
@@ -1289,6 +1345,7 @@ const App = () => {
 					{focusPane === 'input' ? <Text color={promptCursorColor}>{promptCursor}</Text> : null}
 				</Text>
 				<Text color="gray" wrap="truncate-end">{promptHint}</Text>
+				<Text color="gray">Enter run · Up/Down choose action when empty · Tab switch pane · /status for routing info</Text>
 			</Card>
 		</Box>
 	);
