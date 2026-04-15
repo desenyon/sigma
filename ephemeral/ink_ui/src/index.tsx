@@ -1570,7 +1570,18 @@ const App = () => {
 					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
 				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
-				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output</Text>
+				<Text color="gray">
+					{['Tab switch pane']
+						.concat(
+							focusPane === 'input' && !input.trim() ? ['Up/Down choose action'] : [],
+							focusPane === 'input' && input ? ['Esc clear input'] : [],
+							focusPane === 'history' ? ['Up/Down navigate', 'Ctrl+L clear'] : [],
+							focusPane === 'actions' ? ['Up/Down navigate'] : [],
+							focusPane === 'output' ? ['Up/Down or [ ] scroll'] : [],
+							['d toggles raw output']
+						)
+						.join(' · ')}
+				</Text>
 			</Box>
 		</Box>
 	);
