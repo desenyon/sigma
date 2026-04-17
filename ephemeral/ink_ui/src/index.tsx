@@ -1393,7 +1393,6 @@ const App = () => {
 		? selectedAction.hint
 		: selectedAction.promptPlaceholder ?? 'Use natural language or slash commands like /quote AAPL';
 	const shellStatus = busy ? `running ${pendingLabel ?? 'request'}` : statusLoading ? 'syncing state' : `${metrics.provider} · ${metrics.model}`;
-	const sidebarFocused = focusPane === 'actions' || focusPane === 'history';
 	const dividerWidth = Math.min(terminalWidth - 8, 72);
 	const headerTone = busy ? 'yellow' : statusLoading ? 'blue' : 'green';
 	const actionAccent = pickGroupColor(selectedAction.group);
@@ -1401,7 +1400,7 @@ const App = () => {
 
 	const sidebarRows = useMemo(() => {
 		const rows: LineRow[] = [
-			{text: 'NAVIGATOR', color: sidebarFocused ? actionAccent : 'gray', bold: true},
+			{text: 'NAVIGATOR', color: focusPane === 'actions' ? actionAccent : 'gray', bold: true},
 			{text: `${metrics.provider} · ${truncate(String(metrics.model), 20)}`, color: 'gray'},
 			{text: ''},
 		];
@@ -1416,7 +1415,7 @@ const App = () => {
 				const selected = action.id === selectedAction.id;
 				rows.push({
 					text: `${selected ? '>' : ' '} ${action.label}`,
-					color: selected ? pickGroupColor(group) : 'white',
+					color: selected ? (focusPane === 'actions' ? pickGroupColor(group) : 'white') : 'gray',
 					bold: selected,
 				});
 			}
@@ -1428,7 +1427,7 @@ const App = () => {
 			for (const row of activityRows) {
 				rows.push({
 					text: `${row.selected ? '>' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`,
-					color: row.selected ? 'cyanBright' : row.error ? 'red' : 'gray',
+					color: row.selected ? (focusPane === 'history' ? 'cyanBright' : 'white') : row.error ? 'red' : 'gray',
 					bold: row.selected,
 				});
 			}
@@ -1443,7 +1442,7 @@ const App = () => {
 		}
 		rows.push({text: `Focus ${focusPane} · ${selectedEntry ? detailMode : 'workspace'}`, color: 'gray'});
 		return padRows(rows, bodyHeight);
-	}, [actionAccent, activityRows, bodyHeight, focusPane, metrics.host, metrics.localReady, metrics.model, metrics.provider, metrics.state, selectedAction.group, selectedAction.id, selectedEntry, detailMode, sidebarFocused, sidebarWidth]);
+	}, [actionAccent, activityRows, bodyHeight, focusPane, metrics.host, metrics.localReady, metrics.model, metrics.provider, metrics.state, selectedAction.group, selectedAction.id, selectedEntry, detailMode, sidebarWidth]);
 
 	const workspaceRows = useMemo(
 		() =>

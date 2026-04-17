@@ -1,0 +1,3 @@
+## 2026-04-17 - Keyboard Navigation Visual Focus (Dim when inactive)
+**Learning:** In terminal UIs with multiple panes (like `actions`, `history`, `output`, `input`), using bold/accent colors for selected items in *unfocused* panes creates ambiguity about where the keyboard focus currently is.
+**Action:** Implemented a "dim when inactive" pattern. Selected items in unfocused lists now render in plain white (dimmed) rather than accent colors, reserving the accent color strictly for the actively focused pane. This clarifies keyboard navigation state instantly without altering the list structure.
