@@ -1,0 +1,3 @@
+## 2025-02-13 - [Visual Hierarchy for Keyboard Shortcuts in Terminal UI]
+**Learning:** In a dense CLI/terminal interface built with React/Ink, inline text instructions for keyboard shortcuts can easily blend into helper text, reducing discoverability and slowing down expert users.
+**Action:** Establish a reusable pattern where inline keyboard shortcut references (like "Tab", "Enter", "Up/Down") are wrapped in a visually distinct `<Text color="white" bold>` component against the `gray` helper text background to create clear visual hierarchy and immediate scannability without relying on heavy background color contrasts.
