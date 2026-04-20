@@ -1570,7 +1570,9 @@ const App = () => {
 					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
 				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
-				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output</Text>
+				<Text color="gray">
+					<Text color="white" bold>Tab</Text> switch pane · <Text color="white" bold>Up/Down</Text> choose action when the composer is empty · <Text color="white" bold>d</Text> toggles raw output
+				</Text>
 			</Box>
 		</Box>
 	);
