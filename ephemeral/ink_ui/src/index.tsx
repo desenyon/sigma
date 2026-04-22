@@ -1561,7 +1561,7 @@ const App = () => {
 					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
 						{selectedAction.label}
 					</Text>
-					<Text color={busy ? 'yellow' : 'gray'}>{`${promptStatus} · Enter run`}</Text>
+					<Text color={busy ? 'yellow' : 'gray'}>{busy ? promptStatus : `${promptStatus} · Enter run`}</Text>
 				</Box>
 				<Text>
 					<Text color={focusPane === 'input' ? actionAccent : 'gray'}>{'> '}</Text>
@@ -1570,7 +1570,14 @@ const App = () => {
 					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
 				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
-				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output</Text>
+				<Text>
+					<Text color="white" bold>Tab</Text>
+					<Text color="gray"> switch pane · </Text>
+					<Text color="white" bold>↑/↓</Text>
+					<Text color="gray"> choose action when empty · </Text>
+					<Text color="white" bold>d</Text>
+					<Text color="gray"> toggles raw output</Text>
+				</Text>
 			</Box>
 		</Box>
 	);
