@@ -1561,7 +1561,16 @@ const App = () => {
 					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
 						{selectedAction.label}
 					</Text>
-					<Text color={busy ? 'yellow' : 'gray'}>{busy ? promptStatus : `${promptStatus} · Enter run`}</Text>
+					<Text>
+						<Text color={busy ? 'yellow' : 'gray'}>{promptStatus}</Text>
+						{!busy && (
+							<>
+								<Text color="gray"> · </Text>
+								<Text color="white" bold>Enter</Text>
+								<Text color="gray"> run</Text>
+							</>
+						)}
+					</Text>
 				</Box>
 				<Text>
 					<Text color={focusPane === 'input' ? actionAccent : 'gray'}>{'> '}</Text>
