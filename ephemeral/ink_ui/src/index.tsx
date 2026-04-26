@@ -1163,17 +1163,17 @@ const InteractiveKeyboardController = ({
 			}
 		}
 
-		if (value === '[') {
+		if (value === '[' && focusPane === 'output') {
 			setOutputScroll(previous => Math.max(0, previous - Math.max(1, outputViewportHeight - 2)));
 			return;
 		}
 
-		if (value === ']') {
+		if (value === ']' && focusPane === 'output') {
 			setOutputScroll(previous => previous + Math.max(1, outputViewportHeight - 2));
 			return;
 		}
 
-		if (value.toLowerCase() === 'd' && !input.trim()) {
+		if (value.toLowerCase() === 'd' && focusPane !== 'input') {
 			setDetailMode(previous => (previous === 'rendered' ? 'raw' : 'rendered'));
 			return;
 		}
@@ -1482,7 +1482,7 @@ const App = () => {
 		() =>
 			padRows(
 				[
-					{text: workspaceStatus, color: focusPane === 'output' ? 'cyanBright' : 'white', bold: true},
+					{text: workspaceStatus, color: focusPane === 'output' ? 'cyanBright' : 'gray', bold: true},
 					{text: workspaceSubtitle, color: 'gray'},
 					{text: ''},
 					...viewport.lines.map(line => ({text: line || ' '})),
@@ -1599,7 +1599,7 @@ const App = () => {
 
 			<Box flexDirection="column">
 				<Box justifyContent="space-between">
-					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
+					<Text color={focusPane === 'input' ? actionAccent : 'gray'} bold>
 						{selectedAction.label}
 					</Text>
 					<Text color={busy ? 'yellow' : 'gray'}>
