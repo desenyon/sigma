@@ -1482,7 +1482,7 @@ const App = () => {
 		() =>
 			padRows(
 				[
-					{text: workspaceStatus, color: focusPane === 'output' ? 'cyanBright' : 'white', bold: true},
+					{text: workspaceStatus, color: focusPane === 'output' ? 'cyanBright' : 'gray', bold: true},
 					{text: workspaceSubtitle, color: 'gray'},
 					{text: ''},
 					...viewport.lines.map(line => ({text: line || ' '})),
@@ -1599,7 +1599,7 @@ const App = () => {
 
 			<Box flexDirection="column">
 				<Box justifyContent="space-between">
-					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
+					<Text color={focusPane === 'input' ? actionAccent : 'gray'} bold>
 						{selectedAction.label}
 					</Text>
 					<Text color={busy ? 'yellow' : 'gray'}>
@@ -1619,7 +1619,7 @@ const App = () => {
 					{focusPane === 'input' ? <Text color={promptCursorColor}>{promptCursor}</Text> : null}
 					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
-				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
+				<Text color="gray">{selectedAction.description}{!busy && ` · ${selectedAction.hint}`}</Text>
 				<Text color="gray">
 					{composerShortcuts.map((shortcut, index) => (
 						<React.Fragment key={`${shortcut.key}-${shortcut.description}`}>
